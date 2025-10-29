@@ -9,6 +9,7 @@ import {
   Post,
   UseInterceptors,
   UploadedFile,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -21,16 +22,18 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // Protected endpoints - require auth (must be before dynamic routes)
   @Get('profile')
+  @UseGuards(JwtAuthGuard)
   async getProfile(@CurrentUser() user: User): Promise<User> {
     return this.usersService.getProfile(user.id);
   }
 
   @Put('profile')
+  @UseGuards(JwtAuthGuard)
   async updateProfile(
     @CurrentUser() user: User,
     @Body() updateProfileDto: UpdateProfileDto,
@@ -39,6 +42,7 @@ export class UsersController {
   }
 
   @Post('change-password')
+  @UseGuards(JwtAuthGuard)
   async changePassword(
     @CurrentUser() user: User,
     @Body() changePasswordDto: ChangePasswordDto,
@@ -47,6 +51,7 @@ export class UsersController {
   }
 
   @Get('listings')
+  @UseGuards(JwtAuthGuard)
   async getUserListings(
     @CurrentUser() user: User,
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
@@ -56,6 +61,7 @@ export class UsersController {
   }
 
   @Post('deactivate')
+  @UseGuards(JwtAuthGuard)
   async deactivateAccount(
     @CurrentUser() user: User,
   ): Promise<{ message: string }> {
@@ -63,6 +69,7 @@ export class UsersController {
   }
 
   @Post('reactivate')
+  @UseGuards(JwtAuthGuard)
   async reactivateAccount(
     @CurrentUser() user: User,
   ): Promise<{ message: string }> {
@@ -70,6 +77,7 @@ export class UsersController {
   }
 
   @Post('upload-avatar')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('avatar', {
       storage: diskStorage({
@@ -108,5 +116,20 @@ export class UsersController {
       message: 'Avatar uploaded successfully',
       profileImage,
     };
+  }
+
+  // Public endpoints - no auth required (must be after specific routes)
+  @Get(':id')
+  async getUserProfile(@Param('id') id: string): Promise<User> {
+    return this.usersService.getProfile(id);
+  }
+
+  @Get(':id/listings')
+  async getUserPublicListings(
+    @Param('id') id: string,
+    @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
+  ) {
+    return this.usersService.getUserListings(id, page, limit);
   }
 }

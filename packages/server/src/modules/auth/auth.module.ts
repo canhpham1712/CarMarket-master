@@ -8,8 +8,8 @@ import { AuthService } from './auth.service';
 import { User } from '../../entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
-import { GoogleStrategy } from './strategies/google.strategy';
-import { FacebookStrategy } from './strategies/facebook.strategy';
+// import { GoogleStrategy } from './strategies/google.strategy';
+// import { FacebookStrategy } from './strategies/facebook.strategy';
 
 @Module({
   imports: [
@@ -27,7 +27,7 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy, GoogleStrategy, FacebookStrategy],
+  providers: [AuthService, JwtStrategy, LocalStrategy], // GoogleStrategy, FacebookStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}
