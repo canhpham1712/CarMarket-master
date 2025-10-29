@@ -7,7 +7,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { CarDetailsPage } from "./pages/CarDetailsPage";
 import { SellCarPage } from "./pages/SellCarPage";
 import { EditListingPage } from "./pages/EditListingPage";
-import { ProfilePage } from "./pages/ProfilePage";
+import { UserProfilePage } from "./pages/UserProfilePage";
 import { MyListingsPage } from "./pages/MyListingsPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import { ChatPage } from "./pages/ChatPage";
@@ -50,106 +50,107 @@ function App() {
             <div className="min-h-screen bg-gray-50">
               <Routes>
                 <Route path="/" element={<Layout />}>
-                <Route index element={<HomePage />} />
-                <Route
-                  path="/login"
-                  element={
-                    <PublicRoute>
-                      <LoginPage />
-                    </PublicRoute>
-                  }
-                />
-                <Route
-                  path="/register"
-                  element={
-                    <PublicRoute>
-                      <RegisterPage />
-                    </PublicRoute>
-                  }
-                />
-                <Route path="/auth/callback" element={<AuthCallbackPage />} />
-                <Route path="/cars/:id" element={<CarDetailsPage />} />
+                  <Route index element={<HomePage />} />
+                  <Route
+                    path="/login"
+                    element={
+                      <PublicRoute>
+                        <LoginPage />
+                      </PublicRoute>
+                    }
+                  />
+                  <Route
+                    path="/register"
+                    element={
+                      <PublicRoute>
+                        <RegisterPage />
+                      </PublicRoute>
+                    }
+                  />
+                  <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                  <Route path="/cars/:id" element={<CarDetailsPage />} />
+                  <Route path="/users/:id" element={<UserProfilePage />} />
 
-                {/* Protected Routes */}
-                <Route
-                  path="/sell-car"
-                  element={
-                    <ProtectedRoute>
-                      <SellCarPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/edit-listing/:id"
-                  element={
-                    <ProtectedRoute>
-                      <EditListingPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <ProfilePage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/my-listings"
-                  element={
-                    <ProtectedRoute>
-                      <MyListingsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/favorites"
-                  element={
-                    <ProtectedRoute>
-                      <FavoritesPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/conversations"
-                  element={
-                    <ProtectedRoute>
-                      <ConversationsListPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/chat/:conversationId"
-                  element={
-                    <ProtectedRoute>
-                      <ChatPage />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Protected Routes */}
+                  <Route
+                    path="/sell-car"
+                    element={
+                      <ProtectedRoute>
+                        <SellCarPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/edit-listing/:id"
+                    element={
+                      <ProtectedRoute>
+                        <EditListingPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <UserProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/my-listings"
+                    element={
+                      <ProtectedRoute>
+                        <MyListingsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/favorites"
+                    element={
+                      <ProtectedRoute>
+                        <FavoritesPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/conversations"
+                    element={
+                      <ProtectedRoute>
+                        <ConversationsListPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/chat/:conversationId"
+                    element={
+                      <ProtectedRoute>
+                        <ChatPage />
+                      </ProtectedRoute>
+                    }
+                  />
 
-                {/* Admin Routes */}
-                <Route
-                  path="/admin/dashboard"
-                  element={
-                    <AdminRoute>
-                      <EnhancedAdminDashboard />
-                    </AdminRoute>
-                  }
-                />
-              </Route>
-            </Routes>
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: "#363636",
-                  color: "#fff",
-                },
-              }}
-            />
-          </div>
+                  {/* Admin Routes */}
+                  <Route
+                    path="/admin/dashboard"
+                    element={
+                      <AdminRoute>
+                        <EnhancedAdminDashboard />
+                      </AdminRoute>
+                    }
+                  />
+                </Route>
+              </Routes>
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: "#363636",
+                    color: "#fff",
+                  },
+                }}
+              />
+            </div>
           </AssistantProvider>
         </Router>
       </SocketProvider>

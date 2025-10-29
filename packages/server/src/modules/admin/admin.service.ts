@@ -201,7 +201,7 @@ export class AdminService {
       console.error('Error approving listing:', error);
       console.error('Listing ID:', listingId);
       console.error('Admin User ID:', adminUserId);
-      
+
       // Re-throw the original error for better debugging
       throw error;
     }
@@ -599,8 +599,18 @@ export class AdminService {
     return this.permissionService.getUserRoles(userId);
   }
 
-  async assignRole(userId: string, roleId: string, adminId: string, expiresAt?: Date) {
-    return this.permissionService.assignRole(userId, roleId, adminId, expiresAt);
+  async assignRole(
+    userId: string,
+    roleId: string,
+    adminId: string,
+    expiresAt?: Date,
+  ) {
+    return this.permissionService.assignRole(
+      userId,
+      roleId,
+      adminId,
+      expiresAt,
+    );
   }
 
   async removeRole(userId: string, roleId: string) {
@@ -617,7 +627,7 @@ export class AdminService {
       limit,
       page: 1,
     });
-    return logs.logs || [];
+    return logs || [];
   }
 
   async seedRbacData() {
@@ -629,15 +639,51 @@ export class AdminService {
       }
 
       // Create basic permissions (placeholder for future seeding)
-      // Removed unused variable to satisfy linter
+      // const permissions = [
+      //   { name: 'admin:users', description: 'Manage users', action: 'MANAGE', resource: 'USER' },
+      //   { name: 'admin:listings', description: 'Manage listings', action: 'MANAGE', resource: 'LISTING' },
+      //   { name: 'admin:logs', description: 'View audit logs', action: 'READ', resource: 'LOGS' },
+      //   { name: 'admin:system', description: 'System administration', action: 'MANAGE', resource: 'SYSTEM' },
+      //   { name: 'user:profile', description: 'Manage own profile', action: 'MANAGE', resource: 'USER' },
+      //   { name: 'user:listings', description: 'Manage own listings', action: 'MANAGE', resource: 'LISTING' },
+      // ];
 
       // Create roles (placeholder for future seeding)
-      // Removed unused variable to satisfy linter
+      // const roles = [
+      //   {
+      //     name: 'super_admin',
+      //     description: 'Super Administrator with full system access',
+      //     isSystem: true,
+      //     priority: 100,
+      //   },
+      //   {
+      //     name: 'admin',
+      //     description: 'Administrator with management access',
+      //     isSystem: true,
+      //     priority: 90,
+      //   },
+      //   {
+      //     name: 'moderator',
+      //     description: 'Moderator with limited admin access',
+      //     isSystem: true,
+      //     priority: 80,
+      //   },
+      //   {
+      //     name: 'user',
+      //     description: 'Regular user with basic permissions',
+      //     isSystem: true,
+      //     priority: 10,
+      //   },
+      // ];
 
       return { message: 'RBAC data seeded successfully', success: true };
     } catch (error) {
       console.error('Failed to seed RBAC data:', error);
-      return { message: 'Failed to seed RBAC data', success: false, error: error.message };
+      return {
+        message: 'Failed to seed RBAC data',
+        success: false,
+        error: error.message,
+      };
     }
   }
 }

@@ -430,16 +430,24 @@ export function CarDetailsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-4 mb-4">
-                <Avatar
-                  src={
-                    listing.seller.profileImage
-                      ? `http://localhost:3000${listing.seller.profileImage}`
-                      : undefined
-                  }
-                  alt={`${listing.seller.firstName} ${listing.seller.lastName}`}
-                  size="lg"
-                />
-                <div>
+                <div
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => navigate(`/users/${listing.seller.id}`)}
+                >
+                  <Avatar
+                    src={
+                      listing.seller.profileImage
+                        ? `http://localhost:3000${listing.seller.profileImage}`
+                        : undefined
+                    }
+                    alt={`${listing.seller.firstName} ${listing.seller.lastName}`}
+                    size="lg"
+                  />
+                </div>
+                <div
+                  className="flex-1 cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => navigate(`/users/${listing.seller.id}`)}
+                >
                   <h3 className="text-lg font-semibold text-gray-900">
                     {listing.seller.firstName} {listing.seller.lastName}
                   </h3>

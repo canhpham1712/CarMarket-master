@@ -46,4 +46,16 @@ export class ProfileService {
   static async getUserListings(page: number = 1, limit: number = 10) {
     return apiClient.get("/users/listings", { page, limit });
   }
+
+  static async getUserProfileById(userId: string): Promise<User> {
+    return apiClient.get<User>(`/users/${userId}`);
+  }
+
+  static async getUserListingsById(
+    userId: string,
+    page: number = 1,
+    limit: number = 10
+  ) {
+    return apiClient.get(`/users/${userId}/listings`, { page, limit });
+  }
 }
