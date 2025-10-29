@@ -161,10 +161,10 @@ export function CarCard({
   };
 
   return (
-    <Card className="hover:shadow-lg transition-shadow duration-200 overflow-hidden relative">
+    <Card className="hover:shadow-lg transition-shadow duration-200 overflow-hidden relative flex flex-col h-full">
       <Link to={`/cars/${listing.id}`}>
         {/* Image */}
-        <div className="relative h-48 overflow-hidden">
+        <div className="relative h-48 overflow-hidden flex-shrink-0">
           {/* Diagonal SOLD tag for sold listings - only on image */}
           {listing.status === "sold" && (
             <div className="absolute inset-0 z-10 pointer-events-none">
@@ -215,10 +215,10 @@ export function CarCard({
         </div>
       </Link>
 
-      <CardContent className="p-4">
-        <Link to={`/cars/${listing.id}`}>
+      <CardContent className="p-4 flex flex-col flex-1">
+        <Link to={`/cars/${listing.id}`} className="flex flex-col flex-1">
           {/* Title */}
-          <div className="mb-2">
+          <div className="mb-2 flex-shrink-0">
             <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 hover:text-blue-600 transition-colors">
               {listing.title}
             </h3>
@@ -230,7 +230,7 @@ export function CarCard({
           </div>
 
           {/* Car Info */}
-          <div className="text-sm text-gray-600 mb-3 space-y-1">
+          <div className="text-sm text-gray-600 mb-3 space-y-1 flex-shrink-0">
             <div className="flex items-center">
               <Car className="w-4 h-4 mr-2" />
               {listing.carDetail.year} •{" "}
@@ -251,7 +251,7 @@ export function CarCard({
           </div>
 
           {/* Price */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <div className="text-2xl font-bold text-blue-600">
               {formatPrice(listing.price)}
             </div>
@@ -264,7 +264,7 @@ export function CarCard({
           </div>
 
           {/* Meta Info */}
-          <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center justify-between text-xs text-gray-500 flex-shrink-0">
             <div className="flex items-center">
               <Calendar className="w-3 h-3 mr-1" />
               {formatRelativeTime(listing.createdAt)}
@@ -286,7 +286,7 @@ export function CarCard({
         {!showActions &&
           user?.id !== listing.seller.id &&
           listing.status !== "sold" && (
-            <div className="flex space-x-2 mt-4 pt-4 border-t border-gray-200">
+            <div className="flex space-x-2 mt-auto pt-4 border-t border-gray-200 flex-shrink-0">
               {isAuthenticated && (
                 <Button
                   size="sm"
@@ -325,7 +325,7 @@ export function CarCard({
 
         {/* Action Buttons for User's Own Listings */}
         {showActions && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-auto pt-4 border-t border-gray-200 flex-shrink-0">
             {listing.status === "sold" ? (
               <div className="text-center">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">

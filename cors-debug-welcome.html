@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <title>CORS Debug - Assistant Welcome</title>
+  </head>
+  <body>
+    <h1>CORS Debug Test</h1>
+    <p>Current origin: <span id="origin"></span></p>
+    <button onclick="testWelcomeAPI()">Test Welcome API</button>
+    <button onclick="testWithAxios()">Test with Axios</button>
+    <div id="result"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+      document.getElementById("origin").textContent = window.location.origin;
+
+      async function testWelcomeAPI() {
+        const resultDiv = document.getElementById("result");
+        resultDiv.innerHTML = "Testing Welcome API with fetch...";
+
+        try {
+          const response = await fetch(
+            "http://localhost:3000/api/assistant/welcome",
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            resultDiv.innerHTML = `<h3>✅ Fetch Success!</h3><pre>${JSON.stringify(data, null, 2)}</pre>`;
+          } else {
+            resultDiv.innerHTML = `<h3>❌ Fetch Error: ${response.status}</h3><p>${response.statusText}</p>`;
+          }
+        } catch (error) {
+          resultDiv.innerHTML = `<h3>❌ Fetch CORS Error:</h3><p>${error.message}</p>`;
+        }
+      }
+
+      async function testWithAxios() {
+        const resultDiv = document.getElementById("result");
+        resultDiv.innerHTML = "Testing Welcome API with Axios...";
+
+        try {
+          const response = await axios.get(
+            "http://localhost:3000/api/assistant/welcome",
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          resultDiv.innerHTML = `<h3>✅ Axios Success!</h3><pre>${JSON.stringify(response.data, null, 2)}</pre>`;
+        } catch (error) {
+          resultDiv.innerHTML = `<h3>❌ Axios Error:</h3><p>${error.message}</p><p>Status: ${error.response?.status}</p>`;
+        }
+      }
+    </script>
+  </body>
+</html>

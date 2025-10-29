@@ -6,16 +6,22 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Truck,
+  Zap,
+  Leaf,
+  Wrench,
+  Mountain,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card, CardContent } from "../components/ui/Card";
 import { EnhancedSelect } from "../components/ui/EnhancedSelect";
+import { DualRangeSlider } from "../components/ui/DualRangeSlider";
 import { CarCard } from "../components/CarCard";
 import { useAuthStore } from "../store/auth";
 import type { ListingDetail, SearchFilters } from "../types";
 import { ListingService } from "../services/listing.service";
-import { useMetadata, MetadataService } from "../services/metadata.service";
+import { useMetadata } from "../services/metadata.service";
 import { useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -24,11 +30,17 @@ export function HomePage() {
   const location = useLocation();
   const [listings, setListings] = useState<ListingDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(""); // Temporary search query
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState(""); // Applied search query
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<SearchFilters>({});
+  const [filters, setFilters] = useState<SearchFilters>({
+    priceMin: 0,
+    priceMax: 100000000,
+  }); // Temporary filters (being edited)
+  const [appliedFilters, setAppliedFilters] = useState<SearchFilters>({}); // Applied filters
   const { metadata } = useMetadata();
-  const [availableModels, setAvailableModels] = useState<Array<{ value: string; label: string }>>([]);
+  const [selectedMakeId, setSelectedMakeId] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<any[]>([]);
 
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -39,56 +51,80 @@ export function HomePage() {
   });
 
   // Store total available cars (unfiltered count)
-  const [totalCarsAvailable, setTotalCarsAvailable] = useState<number | null>(null);
+  const [totalCarsAvailable, setTotalCarsAvailable] = useState<number | null>(
+    null
+  );
+
+  // Store pending match count (from current filters before applying)
+  const [pendingMatchCount, setPendingMatchCount] = useState<number | null>(
+    null
+  );
 
   const sortOptions = [
-    { value: "newest", label: "Newest First", sortBy: "createdAt", sortOrder: "DESC" as const },
-    { value: "oldest", label: "Oldest First", sortBy: "createdAt", sortOrder: "ASC" as const },
-    { value: "price-low", label: "Price: Low to High", sortBy: "price", sortOrder: "ASC" as const },
-    { value: "price-high", label: "Price: High to Low", sortBy: "price", sortOrder: "DESC" as const },
-    { value: "year-new", label: "Year: Newest First", sortBy: "year", sortOrder: "DESC" as const },
-    { value: "year-old", label: "Year: Oldest First", sortBy: "year", sortOrder: "ASC" as const },
-    { value: "mileage-low", label: "Mileage: Low to High", sortBy: "mileage", sortOrder: "ASC" as const },
-    { value: "mileage-high", label: "Mileage: High to Low", sortBy: "mileage", sortOrder: "DESC" as const },
+    {
+      value: "newest",
+      label: "Newest First",
+      sortBy: "createdAt",
+      sortOrder: "DESC" as const,
+    },
+    {
+      value: "oldest",
+      label: "Oldest First",
+      sortBy: "createdAt",
+      sortOrder: "ASC" as const,
+    },
+    {
+      value: "price-low",
+      label: "Price: Low to High",
+      sortBy: "price",
+      sortOrder: "ASC" as const,
+    },
+    {
+      value: "price-high",
+      label: "Price: High to Low",
+      sortBy: "price",
+      sortOrder: "DESC" as const,
+    },
+    {
+      value: "year-new",
+      label: "Year: Newest First",
+      sortBy: "year",
+      sortOrder: "DESC" as const,
+    },
+    {
+      value: "year-old",
+      label: "Year: Oldest First",
+      sortBy: "year",
+      sortOrder: "ASC" as const,
+    },
+    {
+      value: "mileage-low",
+      label: "Mileage: Low to High",
+      sortBy: "mileage",
+      sortOrder: "ASC" as const,
+    },
+    {
+      value: "mileage-high",
+      label: "Mileage: High to Low",
+      sortBy: "mileage",
+      sortOrder: "DESC" as const,
+    },
   ];
 
   // Show welcome message for OAuth users
   useEffect(() => {
-    if (user && user.provider && user.provider !== 'local') {
+    if (user && user.provider && user.provider !== "local") {
       // Check if this is a fresh OAuth login by checking if we just navigated from callback
       const fromCallback = location.state?.fromCallback;
       if (fromCallback) {
-        toast.success(`🎉 Welcome ${user.firstName}! You're successfully logged in with ${user.provider}.`);
+        toast.success(
+          `🎉 Welcome ${user.firstName}! You're successfully logged in with ${user.provider}.`
+        );
       }
     }
   }, [user, location.state]);
 
-  // Fetch models when make changes
-  useEffect(() => {
-    const fetchModels = async () => {
-      if (filters.make && metadata?.makes) {
-        const selectedMake = metadata.makes.find((m) => m.name === filters.make);
-        if (selectedMake) {
-          try {
-            const models = await MetadataService.getModelsByMake(selectedMake.id);
-            setAvailableModels(
-              models.map((model) => ({
-                value: model.name,
-                label: model.displayName,
-              }))
-            );
-          } catch (error) {
-            console.error("Failed to fetch models:", error);
-            setAvailableModels([]);
-          }
-        }
-      } else {
-        setAvailableModels([]);
-      }
-    };
-
-    fetchModels();
-  }, [filters.make, metadata?.makes]);
+  // Models are now loaded via selectedMakeId in the unified useEffect below
 
   const fetchListings = useCallback(
     async (currentFilters: SearchFilters = {}) => {
@@ -97,9 +133,13 @@ export function HomePage() {
 
         // Determine current sort option
         const defaultSort = { sortBy: "createdAt", sortOrder: "DESC" as const };
-        const currentSort = currentFilters.sortBy && currentFilters.sortOrder
-          ? { sortBy: currentFilters.sortBy, sortOrder: currentFilters.sortOrder }
-          : defaultSort;
+        const currentSort =
+          currentFilters.sortBy && currentFilters.sortOrder
+            ? {
+                sortBy: currentFilters.sortBy,
+                sortOrder: currentFilters.sortOrder,
+              }
+            : defaultSort;
 
         const searchFilters: SearchFilters = {
           ...currentFilters,
@@ -110,7 +150,7 @@ export function HomePage() {
         };
 
         // If there are active filters or search query, use search endpoint
-        const hasActiveFilters = 
+        const hasActiveFilters =
           searchFilters.query ||
           searchFilters.make ||
           searchFilters.model ||
@@ -168,14 +208,56 @@ export function HomePage() {
     [pagination.page, pagination.limit]
   );
 
+  // Load initial listings on mount or when pagination changes
   useEffect(() => {
-    // Build current filters
-    const currentFilters: SearchFilters = {
-      ...filters,
-      ...(searchQuery.trim() && { query: searchQuery }),
-    };
+    // Only fetch if filters have been applied (not on initial mount with empty filters)
+    const shouldFetch = hasActiveFilters();
 
-    fetchListings(currentFilters);
+    if (shouldFetch) {
+      // Build current filters from applied filters
+      const currentFilters: SearchFilters = {
+        ...appliedFilters,
+        ...(appliedSearchQuery.trim() && { query: appliedSearchQuery }),
+      };
+      fetchListings(currentFilters);
+    } else {
+      // Load initial listings when no filters are applied
+      const loadInitialListings = async () => {
+        try {
+          setLoading(true);
+          const response = (await ListingService.getListings(
+            pagination.page,
+            pagination.limit
+          )) as {
+            listings: ListingDetail[];
+            pagination: {
+              page: number;
+              limit: number;
+              total: number;
+              totalPages: number;
+            };
+          };
+          setListings(response.listings || []);
+          setPagination(
+            response.pagination || {
+              page: 1,
+              limit: 12,
+              total: 0,
+              totalPages: 0,
+            }
+          );
+          if (response.pagination) {
+            setTotalCarsAvailable(response.pagination.total);
+          }
+        } catch (error) {
+          console.error("Failed to fetch initial listings:", error);
+          toast.error("Failed to load listings. Please try again.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadInitialListings();
+    }
 
     // Refresh favorite states when user comes back to the page
     const handleFocus = () => {
@@ -185,22 +267,158 @@ export function HomePage() {
 
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [pagination.page, pagination.limit, filters, searchQuery, fetchListings]);
+  }, [
+    pagination.page,
+    pagination.limit,
+    appliedFilters,
+    appliedSearchQuery,
+    fetchListings,
+  ]);
+
+  // Load models when make is selected - unified logic for both filter panels
+  useEffect(() => {
+    const loadModels = async () => {
+      if (selectedMakeId && metadata?.makes) {
+        const selectedMake = metadata.makes.find(
+          (make) => make.id === selectedMakeId
+        );
+        if (selectedMake) {
+          setFilters((prev) => ({
+            ...prev,
+            make: selectedMake.name,
+          }));
+
+          try {
+            // Fetch models for the selected make
+            const API_BASE_URL =
+              import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+            const response = await fetch(
+              `${API_BASE_URL}/metadata/makes/${selectedMakeId}/models`
+            );
+            const models = await response.json();
+            console.log("Loaded models:", models);
+            setAvailableModels(models || []);
+          } catch (error) {
+            console.error("Failed to fetch models:", error);
+            setAvailableModels([]);
+          }
+        }
+      } else {
+        setAvailableModels([]);
+        // Clear make and model when no make is selected
+        setFilters((prev) => ({
+          ...prev,
+          make: undefined,
+          model: undefined,
+        }));
+      }
+    };
+
+    loadModels();
+  }, [selectedMakeId, metadata]);
+
+  // Fetch count when filters change (debounced)
+  useEffect(() => {
+    const fetchCount = async () => {
+      // Build current filters from temporary filters
+      const currentFilters: SearchFilters = {
+        ...filters,
+        ...(searchQuery.trim() && { query: searchQuery }),
+      };
+
+      // Check if there are any active filters
+      const hasFilters =
+        currentFilters.query ||
+        currentFilters.make ||
+        currentFilters.model ||
+        currentFilters.yearMin ||
+        currentFilters.yearMax ||
+        (currentFilters.priceMin && currentFilters.priceMin > 0) ||
+        (currentFilters.priceMax && currentFilters.priceMax < 100000000) ||
+        currentFilters.mileageMax ||
+        currentFilters.fuelType ||
+        currentFilters.transmission ||
+        currentFilters.bodyType ||
+        currentFilters.condition ||
+        currentFilters.location;
+
+      if (!hasFilters) {
+        // No filters, use totalCarsAvailable
+        setPendingMatchCount(null);
+        return;
+      }
+
+      try {
+        // Fetch with limit=1 to get total count efficiently
+        const response = await ListingService.searchListings({
+          ...currentFilters,
+          page: 1,
+          limit: 1,
+        });
+        setPendingMatchCount(response.pagination?.total || 0);
+      } catch (error) {
+        console.error("Failed to fetch count:", error);
+        setPendingMatchCount(null);
+      }
+    };
+
+    // Debounce: wait 500ms after user stops changing filters
+    const timeoutId = setTimeout(() => {
+      fetchCount();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [filters, searchQuery]);
 
   const handleSearch = () => {
+    // Apply temporary filters and search query
+    setAppliedFilters({
+      ...filters,
+    });
+    setAppliedSearchQuery(searchQuery.trim());
+    // Clear pending count since we're applying filters now
+    setPendingMatchCount(null);
+
     // Reset to first page when applying new filters
     setPagination((prev) => ({
       ...prev,
       page: 1,
     }));
 
-    // The useEffect will trigger fetchListings with updated filters
+    // The useEffect will trigger fetchListings with updated appliedFilters
+  };
+
+  // Helper function to check if there are active filters
+  const hasActiveFilters = () => {
+    return (
+      appliedSearchQuery.trim() ||
+      appliedFilters.make ||
+      appliedFilters.model ||
+      appliedFilters.yearMin ||
+      appliedFilters.yearMax ||
+      appliedFilters.priceMin ||
+      appliedFilters.priceMax ||
+      appliedFilters.mileageMax ||
+      appliedFilters.fuelType ||
+      appliedFilters.transmission ||
+      appliedFilters.bodyType ||
+      appliedFilters.condition ||
+      appliedFilters.location
+    );
   };
 
   const clearFilters = () => {
-    setFilters({});
+    setFilters({
+      priceMin: 0,
+      priceMax: 100000000,
+    });
+    setAppliedFilters({});
     setSearchQuery("");
+    setAppliedSearchQuery("");
+    setPendingMatchCount(null);
     setShowFilters(false);
+    setSelectedMakeId("");
+    setAvailableModels([]);
     setPagination((prev) => ({
       ...prev,
       page: 1,
@@ -223,9 +441,10 @@ export function HomePage() {
   };
 
   const handleSortChange = (sortValue: string) => {
-    const sortOption = sortOptions.find(opt => opt.value === sortValue);
+    const sortOption = sortOptions.find((opt) => opt.value === sortValue);
     if (sortOption) {
-      setFilters((prev) => ({
+      // Sort is applied immediately
+      setAppliedFilters((prev) => ({
         ...prev,
         sortBy: sortOption.sortBy,
         sortOrder: sortOption.sortOrder,
@@ -239,9 +458,33 @@ export function HomePage() {
 
   const getCurrentSortValue = () => {
     const currentSort = sortOptions.find(
-      opt => opt.sortBy === filters.sortBy && opt.sortOrder === filters.sortOrder
+      (opt) =>
+        opt.sortBy === appliedFilters.sortBy &&
+        opt.sortOrder === appliedFilters.sortOrder
     );
     return currentSort?.value || "newest";
+  };
+
+  // Handle style selection (body type or fuel type)
+  const handleStyleSelect = (type: "bodyType" | "fuelType", value: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      [type]: value,
+    }));
+    // Apply filters immediately
+    setAppliedFilters((prev) => ({
+      ...prev,
+      [type]: value,
+    }));
+    setPagination((prev) => ({
+      ...prev,
+      page: 1,
+    }));
+    // Scroll to top of car listings
+    const listingsSection = document.getElementById("featured-cars-section");
+    if (listingsSection) {
+      listingsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   return (
@@ -257,9 +500,10 @@ export function HomePage() {
               Browse thousands of quality used cars from trusted sellers
             </p>
 
-            {/* Search Bar */}
-            <div className="max-w-2xl mx-auto">
-              <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search Bar with Simplified Filters */}
+            <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-lg p-8 text-black">
+              {/* Main Search Bar */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                   <Input
@@ -267,16 +511,150 @@ export function HomePage() {
                     placeholder="Search by make, model, or keyword..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-12 text-lg text-gray-900 bg-white"
+                    className="pl-10 h-12 text-lg text-gray-900 bg-gray-50 border-gray-300"
                   />
                 </div>
+              </div>
+
+              {/* Simplified Filter Section - Only 4 filters as requested */}
+              <div className="space-y-4">
+                {/* Row 1: Make and Model */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Make Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Make
+                    </label>
+                    <EnhancedSelect
+                      options={
+                        metadata?.makes?.map((make) => ({
+                          value: make.id,
+                          label: make.displayName,
+                        })) || []
+                      }
+                      value={selectedMakeId}
+                      onValueChange={(value) => {
+                        setSelectedMakeId(value as string);
+                      }}
+                      placeholder="Select a make"
+                      searchable={true}
+                      multiple={false}
+                    />
+                  </div>
+
+                  {/* Model Filter - Synchronized with advanced filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Model
+                    </label>
+                    <EnhancedSelect
+                      value={
+                        availableModels.find((m) => m.name === filters.model)
+                          ?.id || ""
+                      }
+                      options={
+                        availableModels && availableModels.length > 0
+                          ? availableModels.map((model) => ({
+                              value: model.id,
+                              label: model.displayName,
+                            }))
+                          : []
+                      }
+                      onValueChange={(value) => {
+                        const selectedModel = availableModels.find(
+                          (model) => model.id === value
+                        );
+                        if (selectedModel) {
+                          setFilters((prev) => ({
+                            ...prev,
+                            model: selectedModel.name,
+                          }));
+                        }
+                      }}
+                      placeholder={
+                        selectedMakeId && availableModels.length === 0
+                          ? "Loading models..."
+                          : selectedMakeId
+                            ? "Select a model"
+                            : "Select make first"
+                      }
+                      searchable={true}
+                      multiple={false}
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Max Mileage */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Max Mileage (miles)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 50000"
+                    value={filters.mileageMax || ""}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        mileageMax: e.target.value
+                          ? Number(e.target.value)
+                          : undefined,
+                      }))
+                    }
+                  />
+                </div>
+
+                {/* Row 3: Price Range Dual Slider */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Price Range: ${(filters.priceMin || 0).toLocaleString()} - $
+                    {(filters.priceMax || 100000000).toLocaleString()}
+                  </label>
+                  <DualRangeSlider
+                    min={0}
+                    max={100000000}
+                    step={1000}
+                    valueMin={filters.priceMin || 0}
+                    valueMax={filters.priceMax || 100000000}
+                    onChangeMin={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        priceMin: value,
+                      }))
+                    }
+                    onChangeMax={(value) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        priceMax: value,
+                      }))
+                    }
+                    formatValue={(v) => `$${v.toLocaleString()}`}
+                  />
+                </div>
+              </div>
+              {/* Show Results Button */}
+              <div className="mt-8 text-center">
                 <Button
                   size="lg"
-                  className="h-12 px-8 bg-white text-blue-600 hover:bg-gray-100"
+                  className="h-12 px-12 bg-blue-600 hover:bg-blue-700 text-white text-lg"
                   onClick={handleSearch}
+                  disabled={loading}
                 >
-                  <Search className="h-5 w-5 mr-2" />
-                  Search
+                  {loading ? (
+                    "Loading..."
+                  ) : (
+                    <>
+                      Show{" "}
+                      {pendingMatchCount !== null
+                        ? `${pendingMatchCount.toLocaleString()}`
+                        : hasActiveFilters() && pagination.total > 0
+                          ? `${pagination.total.toLocaleString()}`
+                          : totalCarsAvailable
+                            ? `${totalCarsAvailable.toLocaleString()}+`
+                            : "10,000+"}{" "}
+                      matches
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -285,12 +663,12 @@ export function HomePage() {
       </section>
 
       {/* Featured Cars */}
-      <section className="py-16 bg-white">
+      <section id="featured-cars-section" className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Featured Cars</h2>
             <div className="flex space-x-2">
-              {(Object.keys(filters).length > 0 || searchQuery) && (
+              {hasActiveFilters() && (
                 <Button variant="outline" onClick={clearFilters}>
                   <X className="h-4 w-4 mr-2" />
                   Clear Filters
@@ -298,7 +676,10 @@ export function HomePage() {
               )}
               <div className="relative">
                 <EnhancedSelect
-                  options={sortOptions.map(opt => ({ value: opt.value, label: opt.label }))}
+                  options={sortOptions.map((opt) => ({
+                    value: opt.value,
+                    label: opt.label,
+                  }))}
                   value={getCurrentSortValue()}
                   onValueChange={(value) => handleSortChange(value as string)}
                   placeholder="Sort by"
@@ -321,53 +702,66 @@ export function HomePage() {
             <Card className="mb-8">
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {/* Make & Model */}
+                  {/* Make */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Make
                     </label>
                     <EnhancedSelect
-                      options={[
-                        { value: "", label: "Any Make" },
-                        ...(metadata.makes?.map((make) => ({
-                          value: make.name,
+                      options={
+                        metadata.makes?.map((make) => ({
+                          value: make.id,
                           label: make.displayName,
-                        })) || []),
-                      ]}
-                      value={filters.make || ""}
-                      onValueChange={(value) =>
-                        setFilters({
-                          ...filters,
-                          make: (value as string) || undefined,
-                          model: undefined, // Clear model when make changes
-                        })
+                        })) || []
                       }
-                      placeholder="Any Make"
+                      value={selectedMakeId}
+                      onValueChange={(value) => {
+                        setSelectedMakeId(value as string);
+                      }}
+                      placeholder="Select a make"
                       searchable={true}
                       multiple={false}
                     />
                   </div>
 
+                  {/* Model - Synchronized with main search */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Model
                     </label>
                     <EnhancedSelect
-                      options={[
-                        { value: "", label: "Any Model" },
-                        ...availableModels,
-                      ]}
-                      value={filters.model || ""}
-                      onValueChange={(value) =>
-                        setFilters({
-                          ...filters,
-                          model: (value as string) || undefined,
-                        })
+                      value={
+                        availableModels.find((m) => m.name === filters.model)
+                          ?.id || ""
                       }
-                      placeholder={filters.make ? "Select Model" : "Select Make First"}
+                      options={
+                        availableModels && availableModels.length > 0
+                          ? availableModels.map((model) => ({
+                              value: model.id,
+                              label: model.displayName,
+                            }))
+                          : []
+                      }
+                      onValueChange={(value) => {
+                        const selectedModel = availableModels.find(
+                          (model) => model.id === value
+                        );
+                        if (selectedModel) {
+                          setFilters((prev) => ({
+                            ...prev,
+                            model: selectedModel.name,
+                          }));
+                        }
+                      }}
+                      placeholder={
+                        selectedMakeId && availableModels.length === 0
+                          ? "Loading models..."
+                          : selectedMakeId
+                            ? "Select a model"
+                            : "Select make first"
+                      }
                       searchable={true}
                       multiple={false}
-                      disabled={!filters.make || availableModels.length === 0}
                     />
                   </div>
 
@@ -415,10 +809,13 @@ export function HomePage() {
                       <EnhancedSelect
                         options={[
                           { value: "", label: "From" },
-                          ...Array.from({ length: new Date().getFullYear() - 1989 }, (_, i) => ({
-                            value: String(new Date().getFullYear() - i),
-                            label: String(new Date().getFullYear() - i),
-                          })),
+                          ...Array.from(
+                            { length: new Date().getFullYear() - 1989 },
+                            (_, i) => ({
+                              value: String(new Date().getFullYear() - i),
+                              label: String(new Date().getFullYear() - i),
+                            })
+                          ),
                         ]}
                         value={filters.yearMin ? String(filters.yearMin) : ""}
                         onValueChange={(value) =>
@@ -434,10 +831,13 @@ export function HomePage() {
                       <EnhancedSelect
                         options={[
                           { value: "", label: "To" },
-                          ...Array.from({ length: new Date().getFullYear() - 1989 }, (_, i) => ({
-                            value: String(new Date().getFullYear() - i),
-                            label: String(new Date().getFullYear() - i),
-                          })),
+                          ...Array.from(
+                            { length: new Date().getFullYear() - 1989 },
+                            (_, i) => ({
+                              value: String(new Date().getFullYear() - i),
+                              label: String(new Date().getFullYear() - i),
+                            })
+                          ),
                         ]}
                         value={filters.yearMax ? String(filters.yearMax) : ""}
                         onValueChange={(value) =>
@@ -608,7 +1008,13 @@ export function HomePage() {
                     className="bg-blue-600 text-white hover:bg-blue-700"
                   >
                     <Search className="h-4 w-4 mr-2" />
-                    Apply Filters ({Object.keys(filters).length} active)
+                    Apply Filters (
+                    {Object.keys(filters).filter(
+                      (key) =>
+                        key !== "priceMin" ||
+                        filters[key as keyof SearchFilters] !== 0
+                    ).length + (searchQuery.trim() ? 1 : 0)}{" "}
+                    active)
                   </Button>
                 </div>
               </CardContent>
@@ -743,6 +1149,135 @@ export function HomePage() {
         </div>
       </section>
 
+      {/* Shop Vehicles by Style */}
+      {metadata && (
+        <section className="py-16 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-8">
+              Shop Vehicles by Style
+            </h2>
+
+            {/* Body Types */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
+              {[
+                { value: "sedan", label: "Sedans", icon: Car },
+                { value: "pickup", label: "Trucks", icon: Truck },
+                { value: "suv", label: "SUV/Crossovers", icon: Car },
+                { value: "coupe", label: "Coupes", icon: Car },
+                { value: "hatchback", label: "Hatchbacks", icon: Car },
+                { value: "minivan", label: "Van/Minivans", icon: Car },
+                { value: "convertible", label: "Convertibles", icon: Car },
+                { value: "wagon", label: "Wagons", icon: Car },
+              ].map(({ value, label, icon: Icon }) => {
+                const isActive = appliedFilters.bodyType === value;
+                return (
+                  <button
+                    key={value}
+                    onClick={() => handleStyleSelect("bodyType", value)}
+                    className={`flex flex-col items-center p-4 rounded-lg transition-all hover:shadow-md cursor-pointer ${
+                      isActive
+                        ? "bg-blue-50 border-2 border-blue-600"
+                        : "bg-white border-2 border-transparent hover:border-gray-200"
+                    }`}
+                  >
+                    {/* Vehicle Image Placeholder */}
+                    <div className="w-24 h-16 mb-3 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                      <Icon
+                        className={`w-20 h-16 object-contain ${
+                          isActive ? "text-blue-600" : "text-gray-400"
+                        }`}
+                        strokeWidth={1.5}
+                      />
+                    </div>
+                    <span
+                      className={`text-sm font-medium text-center ${
+                        isActive ? "text-blue-600" : "text-gray-900"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Separator */}
+            <div className="border-t border-gray-200 my-8"></div>
+
+            {/* Fuel/Drivetrain Types */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                {
+                  type: "fuelType" as const,
+                  value: "hybrid",
+                  label: "Hybrids",
+                  icon: Leaf,
+                },
+                {
+                  type: "fuelType" as const,
+                  value: "electric",
+                  label: "Electrics",
+                  icon: Zap,
+                },
+                {
+                  type: "bodyType" as const,
+                  value: "suv",
+                  label: "AWD/4WDs",
+                  icon: Mountain,
+                  // Note: AWD/4WD would need to be a feature filter, but we'll use SUV as proxy
+                },
+                {
+                  type: "bodyType" as const,
+                  value: "van",
+                  label: "Commercial",
+                  icon: Wrench,
+                },
+              ].map(({ type, value, label, icon: Icon }) => {
+                const isActive =
+                  (type === "bodyType" && appliedFilters.bodyType === value) ||
+                  (type === "fuelType" && appliedFilters.fuelType === value);
+                return (
+                  <button
+                    key={`${type}-${value}`}
+                    onClick={() => handleStyleSelect(type, value)}
+                    className={`flex flex-col items-center p-4 rounded-lg transition-all hover:shadow-md relative cursor-pointer ${
+                      isActive
+                        ? "bg-blue-50 border-2 border-blue-600"
+                        : "bg-white border-2 border-transparent hover:border-gray-200"
+                    }`}
+                  >
+                    {/* Vehicle with Icon */}
+                    <div className="relative w-24 h-16 mb-3 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                      {/* Orange Icon Badge */}
+                      <div className="absolute -top-1 -left-1 w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center z-10 shadow-sm">
+                        <Icon
+                          className="w-4 h-4 text-white"
+                          strokeWidth={2.5}
+                        />
+                      </div>
+                      {/* Vehicle Icon */}
+                      <Car
+                        className={`w-20 h-16 object-contain ${
+                          isActive ? "text-blue-600" : "text-gray-400"
+                        }`}
+                        strokeWidth={1.5}
+                      />
+                    </div>
+                    <span
+                      className={`text-sm font-medium text-center ${
+                        isActive ? "text-blue-600" : "text-gray-900"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Stats Section */}
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -758,19 +1293,21 @@ export function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="text-4xl font-bold text-blue-600 mb-2">
-                {totalCarsAvailable !== null 
-                  ? totalCarsAvailable.toLocaleString()
-                  : <span className="text-gray-400">Loading...</span>
-                }
+                {totalCarsAvailable !== null ? (
+                  totalCarsAvailable.toLocaleString()
+                ) : (
+                  <span className="text-gray-400">Loading...</span>
+                )}
               </div>
               <div className="text-lg text-gray-600">Cars Available</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-blue-600 mb-2">
-                {totalCarsAvailable !== null
-                  ? (totalCarsAvailable * 5).toLocaleString() + '+'
-                  : <span className="text-gray-400">Loading...</span>
-                }
+                {totalCarsAvailable !== null ? (
+                  (totalCarsAvailable * 5).toLocaleString() + "+"
+                ) : (
+                  <span className="text-gray-400">Loading...</span>
+                )}
               </div>
               <div className="text-lg text-gray-600">Happy Customers</div>
             </div>
