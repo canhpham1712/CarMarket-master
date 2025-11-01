@@ -118,6 +118,58 @@ export class ListingsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('upload-videos')
+  @UseInterceptors(
+    FilesInterceptor('videos', 2, {
+      storage: diskStorage({
+        destination: './uploads/cars/videos',
+        filename: (_req, file, cb) => {
+          const randomName = Array(32)
+            .fill(null)
+            .map(() => Math.round(Math.random() * 16).toString(16))
+            .join('');
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (_req, file, cb) => {
+        if (!file.originalname.match(/\.(mp4|webm|ogg|mov|avi)$/i)) {
+          return cb(new Error('Only video files (mp4, webm, ogg, mov, avi) are allowed!'), false);
+        }
+        cb(null, true);
+      },
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100MB per file
+        files: 2, // Maximum 2 videos
+      },
+    }),
+  )
+  async uploadCarVideos(
+    @UploadedFiles() files: Express.Multer.File[],
+  ): Promise<{
+    videos: Array<{
+      filename: string;
+      url: string;
+      originalName: string;
+      fileSize: number;
+      mimeType: string;
+    }>;
+  }> {
+    if (!files || files.length === 0) {
+      throw new Error('No files uploaded');
+    }
+
+    const videos = files.map((file) => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      url: `/uploads/cars/videos/${file.filename}`,
+      fileSize: file.size,
+      mimeType: file.mimetype,
+    }));
+
+    return { videos };
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id/pending-changes')
   getPendingChanges(@Param('id') id: string) {
     return this.listingsService.getPendingChanges(id);

@@ -12,6 +12,7 @@ import {
   FileText,
   Car,
   Camera,
+  Video,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -71,6 +72,8 @@ export function EditListingPage() {
   const [loading, setLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [currentImages, setCurrentImages] = useState<any[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
+  const [currentVideos, setCurrentVideos] = useState<any[]>([]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedMakeId, setSelectedMakeId] = useState<string>("");
@@ -172,6 +175,43 @@ export function EditListingPage() {
     setUploadedImages((prev) => [...prev, ...validFiles]);
   };
 
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+
+    if (uploadedVideos.length + files.length > 2) {
+      toast.error(
+        "🎥 You can upload maximum 2 videos per listing. Please remove some videos first."
+      );
+      return;
+    }
+
+    const validFiles = files.filter((file) => {
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error(
+          `Video "${file.name}" is too large. Please choose a video smaller than 100MB.`
+        );
+        return false;
+      }
+      if (!file.type.match(/^video\/(mp4|webm|ogg|quicktime|x-msvideo)$/)) {
+        toast.error(
+          `"${file.name}" is not a supported video format. Please use MP4, WebM, OGG, MOV, or AVI.`
+        );
+        return false;
+      }
+      return true;
+    });
+
+    setUploadedVideos((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleVideoRemove = (index: number) => {
+    setUploadedVideos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDeleteCurrentVideo = (index: number) => {
+    setCurrentVideos((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const removeImage = (index: number) => {
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
@@ -259,6 +299,11 @@ export function EditListingPage() {
       if (response.carDetail.images && response.carDetail.images.length > 0) {
         setCurrentImages(response.carDetail.images);
       }
+
+      // Set current videos for display
+      if (response.carDetail.videos && response.carDetail.videos.length > 0) {
+        setCurrentVideos(response.carDetail.videos);
+      }
     } catch (error) {
       toast.error("Failed to load listing details");
       navigate("/profile");
@@ -309,6 +354,39 @@ export function EditListingPage() {
         })),
       ];
 
+      // Upload new videos if any
+      let videoUrls: Array<{
+        filename: string;
+        url: string;
+        originalName: string;
+        fileSize: number;
+        mimeType: string;
+      }> = [];
+      if (uploadedVideos.length > 0) {
+        const uploadResponse = await ListingService.uploadCarVideos(uploadedVideos);
+        videoUrls = uploadResponse.videos;
+      }
+
+      // Prepare videos array (existing first, then new)
+      const allVideos = [
+        ...currentVideos.map((video, index) => ({
+          filename: video.filename,
+          originalName: video.originalName,
+          url: video.url,
+          alt: video.alt || `${data.make} ${data.model} video ${index + 1}`,
+          fileSize: video.fileSize || 0,
+          mimeType: video.mimeType || 'video/mp4',
+        })),
+        ...videoUrls.map((vid, index) => ({
+          filename: vid.filename,
+          originalName: vid.originalName,
+          url: vid.url,
+          alt: `${data.make} ${data.model} video ${currentVideos.length + index + 1}`,
+          fileSize: vid.fileSize,
+          mimeType: vid.mimeType,
+        })),
+      ];
+
       const updateData = {
         title: data.title,
         description: data.description,
@@ -338,8 +416,9 @@ export function EditListingPage() {
           description: data.carDescription,
           features: selectedFeatures,
         },
-        // Include all images in correct order
+        // Include all images and videos
         images: allImages,
+        videos: allVideos,
       };
 
       const response = await ListingService.updateListing(id, updateData);
@@ -511,15 +590,11 @@ export function EditListingPage() {
                   Price Type
                 </label>
                 <EnhancedSelect
-                  options={
-                    metadata?.priceTypes?.map((type) => ({
+                  options={(metadata?.priceTypes || [])
+                    .map((type) => ({
                       value: type.value,
                       label: type.displayValue,
-                    })) || [
-                      { value: "negotiable", label: "Negotiable" },
-                      { value: "fixed", label: "Fixed Price" },
-                    ]
-                  }
+                    }))}
                   value={formValues.priceType}
                   onValueChange={(value) =>
                     handleFormValueChange("priceType", value as string)
@@ -1105,6 +1180,102 @@ export function EditListingPage() {
                       multiple
                       accept="image/*"
                       onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Video Upload */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Video className="w-5 h-5 mr-2" />
+              Car Videos (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {(currentVideos.length > 0 || uploadedVideos.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {currentVideos.map((video, index) => (
+                    <div
+                      key={`existing-${index}`}
+                      className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200"
+                    >
+                      <video
+                        src={`http://localhost:3000${video.url}`}
+                        className="w-full h-full object-cover"
+                        controls={false}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCurrentVideo(index)}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                        {video.originalName || `Video ${index + 1}`}
+                      </div>
+                    </div>
+                  ))}
+                  {uploadedVideos.map((file, index) => (
+                    <div
+                      key={`new-${index}`}
+                      className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200"
+                    >
+                      <video
+                        src={URL.createObjectURL(file)}
+                        className="w-full h-full object-cover"
+                        controls={false}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleVideoRemove(index)}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                        {file.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="videos"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Upload New Videos (Optional)
+                </label>
+                <div className="flex items-center justify-center w-full">
+                  <label
+                    htmlFor="videos"
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                  >
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Video className="w-8 h-8 mb-4 text-gray-500" />
+                      <p className="mb-2 text-sm text-gray-500">
+                        <span className="font-semibold">Click to upload</span>{" "}
+                        or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        MP4, WebM, OGG, MOV, AVI up to 100MB each (max 2 videos)
+                      </p>
+                    </div>
+                    <input
+                      id="videos"
+                      type="file"
+                      multiple
+                      accept="video/*"
+                      onChange={handleVideoUpload}
                       className="hidden"
                     />
                   </label>

@@ -38,7 +38,7 @@ export function HomePage() {
     priceMax: 100000000,
   }); // Temporary filters (being edited)
   const [appliedFilters, setAppliedFilters] = useState<SearchFilters>({}); // Applied filters
-  const { metadata } = useMetadata();
+  const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
   const [selectedMakeId, setSelectedMakeId] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<any[]>([]);
 
@@ -208,6 +208,8 @@ export function HomePage() {
     [pagination.page, pagination.limit]
   );
 
+  // (debug logs removed)
+
   // Load initial listings on mount or when pagination changes
   useEffect(() => {
     // Only fetch if filters have been applied (not on initial mount with empty filters)
@@ -295,8 +297,10 @@ export function HomePage() {
             const response = await fetch(
               `${API_BASE_URL}/metadata/makes/${selectedMakeId}/models`
             );
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
             const models = await response.json();
-            console.log("Loaded models:", models);
             setAvailableModels(models || []);
           } catch (error) {
             console.error("Failed to fetch models:", error);
@@ -308,8 +312,8 @@ export function HomePage() {
         // Clear make and model when no make is selected
         setFilters((prev) => ({
           ...prev,
-          make: undefined,
-          model: undefined,
+          make: "",
+          model: "",
         }));
       }
     };
@@ -529,17 +533,29 @@ export function HomePage() {
                       options={
                         metadata?.makes?.map((make) => ({
                           value: make.id,
-                          label: make.displayName,
+                          label: make.displayName || make.name,
                         })) || []
                       }
                       value={selectedMakeId}
                       onValueChange={(value) => {
                         setSelectedMakeId(value as string);
                       }}
-                      placeholder="Select a make"
+                      placeholder={
+                        metadataLoading 
+                          ? "Loading makes..." 
+                          : metadata?.makes?.length === 0 
+                            ? "No makes available" 
+                            : "Select a make"
+                      }
                       searchable={true}
                       multiple={false}
+                      maxHeight="360px"
                     />
+                    {metadataError && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {metadataError}
+                      </p>
+                    )}
                   </div>
 
                   {/* Model Filter - Synchronized with advanced filter */}
@@ -556,7 +572,7 @@ export function HomePage() {
                         availableModels && availableModels.length > 0
                           ? availableModels.map((model) => ({
                               value: model.id,
-                              label: model.displayName,
+                              label: model.displayName || model.name,
                             }))
                           : []
                       }
@@ -596,9 +612,7 @@ export function HomePage() {
                     onChange={(e) =>
                       setFilters((prev) => ({
                         ...prev,
-                        mileageMax: e.target.value
-                          ? Number(e.target.value)
-                          : undefined,
+                        mileageMax: e.target.value ? Number(e.target.value) : 0,
                       }))
                     }
                   />
@@ -711,16 +725,23 @@ export function HomePage() {
                       options={
                         metadata.makes?.map((make) => ({
                           value: make.id,
-                          label: make.displayName,
+                          label: make.displayName || make.name,
                         })) || []
                       }
                       value={selectedMakeId}
                       onValueChange={(value) => {
                         setSelectedMakeId(value as string);
                       }}
-                      placeholder="Select a make"
+                      placeholder={
+                        metadataLoading 
+                          ? "Loading makes..." 
+                          : metadata?.makes?.length === 0 
+                            ? "No makes available" 
+                            : "Select a make"
+                      }
                       searchable={true}
                       multiple={false}
+                      maxHeight="360px"
                     />
                   </div>
 
@@ -738,7 +759,7 @@ export function HomePage() {
                         availableModels && availableModels.length > 0
                           ? availableModels.map((model) => ({
                               value: model.id,
-                              label: model.displayName,
+                              label: model.displayName || model.name,
                             }))
                           : []
                       }
@@ -778,9 +799,7 @@ export function HomePage() {
                         onChange={(e) =>
                           setFilters({
                             ...filters,
-                            priceMin: e.target.value
-                              ? Number(e.target.value)
-                              : undefined,
+                            priceMin: e.target.value ? Number(e.target.value) : 0,
                           })
                         }
                       />
@@ -791,9 +810,7 @@ export function HomePage() {
                         onChange={(e) =>
                           setFilters({
                             ...filters,
-                            priceMax: e.target.value
-                              ? Number(e.target.value)
-                              : undefined,
+                            priceMax: e.target.value ? Number(e.target.value) : 0,
                           })
                         }
                       />
@@ -821,7 +838,7 @@ export function HomePage() {
                         onValueChange={(value) =>
                           setFilters({
                             ...filters,
-                            yearMin: value ? Number(value) : undefined,
+                            yearMin: value ? Number(value) : 0,
                           })
                         }
                         placeholder="From"
@@ -843,7 +860,7 @@ export function HomePage() {
                         onValueChange={(value) =>
                           setFilters({
                             ...filters,
-                            yearMax: value ? Number(value) : undefined,
+                            yearMax: value ? Number(value) : 0,
                           })
                         }
                         placeholder="To"
@@ -865,9 +882,7 @@ export function HomePage() {
                       onChange={(e) =>
                         setFilters({
                           ...filters,
-                          mileageMax: e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
+                          mileageMax: e.target.value ? Number(e.target.value) : 0,
                         })
                       }
                     />
@@ -890,7 +905,7 @@ export function HomePage() {
                       onValueChange={(value) =>
                         setFilters({
                           ...filters,
-                          fuelType: (value as string) || undefined,
+                          fuelType: (value as string) || "",
                         })
                       }
                       placeholder="Any Fuel"
@@ -916,7 +931,7 @@ export function HomePage() {
                       onValueChange={(value) =>
                         setFilters({
                           ...filters,
-                          bodyType: (value as string) || undefined,
+                          bodyType: (value as string) || "",
                         })
                       }
                       placeholder="Any Body Type"
@@ -942,7 +957,7 @@ export function HomePage() {
                       onValueChange={(value) =>
                         setFilters({
                           ...filters,
-                          transmission: (value as string) || undefined,
+                          transmission: (value as string) || "",
                         })
                       }
                       placeholder="Any Transmission"
@@ -968,7 +983,7 @@ export function HomePage() {
                       onValueChange={(value) =>
                         setFilters({
                           ...filters,
-                          condition: (value as string) || undefined,
+                          condition: (value as string) || "",
                         })
                       }
                       placeholder="Any Condition"
@@ -989,7 +1004,7 @@ export function HomePage() {
                       onChange={(e) =>
                         setFilters({
                           ...filters,
-                          location: e.target.value || undefined,
+                          location: e.target.value || "",
                         })
                       }
                     />

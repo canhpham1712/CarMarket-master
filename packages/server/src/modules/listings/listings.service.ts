@@ -12,6 +12,7 @@ import {
 } from '../../entities/listing-detail.entity';
 import { CarDetail } from '../../entities/car-detail.entity';
 import { CarImage, ImageType } from '../../entities/car-image.entity';
+import { CarVideo } from '../../entities/car-video.entity';
 import { ListingPendingChanges } from '../../entities/listing-pending-changes.entity';
 import {
   Transaction,
@@ -32,6 +33,8 @@ export class ListingsService {
     private readonly carDetailRepository: Repository<CarDetail>,
     @InjectRepository(CarImage)
     private readonly carImageRepository: Repository<CarImage>,
+    @InjectRepository(CarVideo)
+    private readonly carVideoRepository: Repository<CarVideo>,
     @InjectRepository(ListingPendingChanges)
     private readonly pendingChangesRepository: Repository<ListingPendingChanges>,
     @InjectRepository(Transaction)
@@ -91,6 +94,52 @@ export class ListingsService {
   }
 
   /**
+   * Analyzes video changes to determine if they are reorder-only or substantive changes
+   * @param existingVideos Current videos in database
+   * @param newVideos New videos from request
+   * @returns 'reorder-only' if only sortOrder/isPrimary changed, 'substantive' if videos added/removed/replaced
+   */
+  private analyzeVideoChanges(existingVideos: CarVideo[], newVideos: any[]): 'reorder-only' | 'substantive' {
+    if (existingVideos.length !== newVideos.length) {
+      return 'substantive';
+    }
+
+    const existingMap = new Map(existingVideos.map(v => [v.filename, v]));
+    const newMap = new Map(newVideos.map(v => [v.filename, v]));
+
+    for (const filename of existingMap.keys()) {
+      if (!newMap.has(filename)) {
+        return 'substantive';
+      }
+    }
+
+    for (const filename of newMap.keys()) {
+      if (!existingMap.has(filename)) {
+        return 'substantive';
+      }
+    }
+
+    for (const [filename, newVid] of newMap) {
+      const existingVid = existingMap.get(filename);
+      if (!existingVid) continue;
+
+      if (
+        existingVid.url !== newVid.url ||
+        existingVid.originalName !== newVid.originalName ||
+        existingVid.alt !== newVid.alt ||
+        existingVid.fileSize !== newVid.fileSize ||
+        existingVid.mimeType !== newVid.mimeType ||
+        existingVid.duration !== newVid.duration ||
+        existingVid.thumbnailUrl !== newVid.thumbnailUrl
+      ) {
+        return 'substantive';
+      }
+    }
+
+    return 'reorder-only';
+  }
+
+  /**
    * Applies image reordering changes directly to the database
    * @param carDetailId The car detail ID
    * @param newImages Array of images with new sortOrder and isPrimary values
@@ -120,11 +169,34 @@ export class ListingsService {
     }
   }
 
+  /**
+   * Applies video reordering changes directly to the database
+   */
+  private async applyVideoReordering(carDetailId: string, newVideos: any[], _userId: string): Promise<void> {
+    const existingVideos = await this.carVideoRepository.find({
+      where: { carDetailId },
+      order: { sortOrder: 'ASC' },
+    });
+
+    const existingMap = new Map(existingVideos.map(v => [v.filename, v]));
+
+    for (let i = 0; i < newVideos.length; i++) {
+      const newVideo = newVideos[i];
+      const existingVideo = existingMap.get(newVideo.filename);
+      if (existingVideo) {
+        await this.carVideoRepository.update(existingVideo.id, {
+          sortOrder: i,
+          isPrimary: i === 0,
+        });
+      }
+    }
+  }
+
   async create(
     userId: string,
     createListingDto: CreateListingDto,
   ): Promise<ListingDetail> {
-    const { carDetail, images, ...listingData } = createListingDto;
+    const { carDetail, images, videos, ...listingData } = createListingDto;
 
     // Create car detail
     const newCarDetail = this.carDetailRepository.create(carDetail);
@@ -159,6 +231,26 @@ export class ListingsService {
       await this.carImageRepository.save(carImages);
     }
 
+    // Create car videos if provided
+    if (videos && videos.length > 0) {
+      const carVideos = videos.map((video, index) =>
+        this.carVideoRepository.create({
+          filename: video.filename,
+          originalName: video.originalName,
+          url: video.url,
+          sortOrder: index,
+          isPrimary: index === 0,
+          alt: video.alt ?? null,
+          carDetailId: savedCarDetail.id,
+          fileSize: video.fileSize ?? null,
+          mimeType: video.mimeType ?? null,
+          duration: video.duration ?? null,
+          thumbnailUrl: video.thumbnailUrl ?? null,
+        }),
+      );
+      await this.carVideoRepository.save(carVideos);
+    }
+
     // Log the listing creation
     await this.logsService.logListingAction(
       userId,
@@ -183,7 +275,7 @@ export class ListingsService {
         { status: ListingStatus.APPROVED, isActive: true },
         { status: ListingStatus.SOLD, isActive: true },
       ],
-      relations: ['carDetail', 'carDetail.images', 'seller'],
+      relations: ['carDetail', 'carDetail.images', 'carDetail.videos', 'seller'],
       order: {
         status: 'ASC', // Approved first, then sold
         createdAt: 'DESC',
@@ -206,7 +298,7 @@ export class ListingsService {
   async findOne(id: string): Promise<ListingDetail> {
     const listing = await this.listingRepository.findOne({
       where: { id },
-      relations: ['carDetail', 'carDetail.images', 'seller'],
+      relations: ['carDetail', 'carDetail.images', 'carDetail.videos', 'seller'],
     });
 
     if (!listing) {
@@ -228,7 +320,7 @@ export class ListingsService {
   ): Promise<ListingDetail> {
     const listing = await this.listingRepository.findOne({
       where: { id },
-      relations: ['carDetail', 'carDetail.images'],
+      relations: ['carDetail', 'carDetail.images', 'carDetail.videos'],
     });
 
     if (!listing) {
@@ -239,7 +331,7 @@ export class ListingsService {
       throw new ForbiddenException('You can only update your own listings');
     }
 
-    const { carDetail, images, ...listingData } = updateListingDto;
+    const { carDetail, images, videos, ...listingData } = updateListingDto;
 
     // Store original values for comparison
     const originalValues = {
@@ -299,11 +391,33 @@ export class ListingsService {
       }
     }
 
+    // Handle video changes
+    let videoChangeType: 'none' | 'reorder-only' | 'substantive' = 'none';
+    if (videos && videos.length > 0) {
+      videoChangeType = this.analyzeVideoChanges(listing.carDetail.videos || [], videos);
+
+      if (videoChangeType === 'reorder-only') {
+        await this.applyVideoReordering(listing.carDetailId, videos, userId);
+
+        await this.logsService.logListingAction(
+          userId,
+          id,
+          'video_reordered',
+          {
+            title: listing.title,
+            videoCount: videos.length,
+            changeType: 'reorder_only',
+          },
+        );
+      }
+    }
+
     // Determine if we need to create pending changes
     const hasSubstantiveChanges = 
       Object.keys(changes).length > 0 ||
       Object.keys(carDetailChanges).length > 0 ||
-      imageChangeType === 'substantive';
+      imageChangeType === 'substantive' ||
+      videoChangeType === 'substantive';
 
     if (hasSubstantiveChanges) {
       const pendingChange = this.pendingChangesRepository.create({
@@ -313,6 +427,7 @@ export class ListingsService {
           listing: changes,
           carDetail: carDetailChanges,
           images: imageChangeType === 'substantive' ? images : [],
+          videos: videoChangeType === 'substantive' ? videos : [],
         },
         originalValues: {
           listing: originalValues,
@@ -337,6 +452,7 @@ export class ListingsService {
       ...updatedListing,
       _metadata: {
         imageChangeType: imageChangeType,
+        videoChangeType: videoChangeType,
         hasSubstantiveChanges: hasSubstantiveChanges,
       }
     } as any;
@@ -439,6 +555,37 @@ export class ListingsService {
             }),
           );
           await this.carImageRepository.save(carImages);
+        }
+      }
+    }
+
+    // Apply video changes if present
+    if (changes.videos && Array.isArray(changes.videos)) {
+      const videos = changes.videos;
+      if (videos.length > 0) {
+        const listing = await this.listingRepository.findOne({
+          where: { id: listingId },
+        });
+
+        if (listing) {
+          await this.carVideoRepository.delete({ carDetailId: listing.carDetailId });
+
+          const carVideos = videos.map((video, index) =>
+            this.carVideoRepository.create({
+              filename: video.filename,
+              originalName: video.originalName,
+              url: video.url,
+              sortOrder: index,
+              isPrimary: index === 0,
+              alt: video.alt ?? null,
+              carDetailId: listing.carDetailId,
+              fileSize: video.fileSize ?? null,
+              mimeType: video.mimeType ?? null,
+              duration: video.duration ?? null,
+              thumbnailUrl: video.thumbnailUrl ?? null,
+            }),
+          );
+          await this.carVideoRepository.save(carVideos);
         }
       }
     }

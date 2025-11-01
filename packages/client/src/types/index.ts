@@ -44,6 +44,7 @@ export interface CarDetail {
   description?: string;
   features: string[];
   images: CarImage[];
+  videos?: CarVideo[];
 }
 
 export interface CarImage {
@@ -55,6 +56,18 @@ export interface CarImage {
   sortOrder: number;
   isPrimary: boolean;
   alt?: string;
+}
+
+export interface CarVideo {
+  id: string;
+  filename: string;
+  originalName: string;
+  url: string;
+  sortOrder: number;
+  isPrimary: boolean;
+  alt?: string;
+  duration?: number;
+  thumbnailUrl?: string;
 }
 
 export interface ListingDetail {

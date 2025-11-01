@@ -146,6 +146,25 @@ CREATE TABLE car_images (
 );
 
 -- ========================================
+-- 6.1. CAR VIDEOS TABLE
+-- ========================================
+CREATE TABLE car_videos (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    filename VARCHAR(255) NOT NULL,
+    "originalName" VARCHAR(255) NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    "sortOrder" INTEGER DEFAULT 0,
+    "isPrimary" BOOLEAN DEFAULT false,
+    "fileSize" BIGINT,
+    "mimeType" VARCHAR(100),
+    alt VARCHAR(255),
+    duration INTEGER,
+    "thumbnailUrl" VARCHAR(500),
+    "carDetailId" UUID NOT NULL REFERENCES car_details(id) ON DELETE CASCADE,
+    "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ========================================
 -- 7. LISTING DETAILS TABLE
 -- ========================================
 CREATE TABLE listing_details (

@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { ListingDetail } from './listing-detail.entity';
 import { CarImage } from './car-image.entity';
+import { CarVideo } from './car-video.entity';
 
 export enum FuelType {
   PETROL = 'petrol',
@@ -135,4 +136,7 @@ export class CarDetail {
 
   @OneToMany(() => CarImage, (image) => image.carDetail)
   images!: CarImage[];
+
+  @OneToMany(() => CarVideo, (video) => video.carDetail)
+  videos!: CarVideo[];
 }

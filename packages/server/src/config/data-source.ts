@@ -3,6 +3,7 @@ import { config } from 'dotenv';
 import { User } from '../entities/user.entity';
 import { CarDetail } from '../entities/car-detail.entity';
 import { CarImage } from '../entities/car-image.entity';
+import { CarVideo } from '../entities/car-video.entity';
 import { ListingDetail } from '../entities/listing-detail.entity';
 import { Transaction } from '../entities/transaction.entity';
 import { CarMake } from '../entities/car-make.entity';
@@ -43,6 +44,7 @@ export const AppDataSource = new DataSource({
     User,
     CarDetail,
     CarImage,
+    CarVideo,
     ListingDetail,
     Transaction,
     CarMake,

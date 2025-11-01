@@ -96,6 +96,31 @@ export class ListingService {
     }>("/listings/upload-images", formData);
   }
 
+  static async uploadCarVideos(files: File[]): Promise<{
+    videos: Array<{
+      filename: string;
+      url: string;
+      originalName: string;
+      fileSize: number;
+      mimeType: string;
+    }>;
+  }> {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append(`videos`, file);
+    });
+
+    return apiClient.post<{
+      videos: Array<{
+        filename: string;
+        url: string;
+        originalName: string;
+        fileSize: number;
+        mimeType: string;
+      }>;
+    }>("/listings/upload-videos", formData);
+  }
+
   static async getUserListings(page: number = 1, limit: number = 10) {
     return apiClient.get("/users/listings", { page, limit });
   }

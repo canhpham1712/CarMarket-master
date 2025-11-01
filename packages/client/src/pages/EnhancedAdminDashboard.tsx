@@ -2427,6 +2427,48 @@ export function EnhancedAdminDashboard() {
                                   </div>
                                 </div>
                               )}
+
+                            {/* Image Changes (substantive) */}
+                            {Array.isArray(change.changes.images) && change.changes.images.length > 0 && (
+                              <div className="mt-4">
+                                <h6 className="font-medium text-gray-800 mb-2">Image Changes:</h6>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                  {change.changes.images.map((img: any, idx: number) => (
+                                    <div key={idx} className="relative aspect-video bg-gray-100 rounded border overflow-hidden">
+                                      <img
+                                        src={`http://localhost:3000${img.url}`}
+                                        alt={img.alt || img.originalName || `Image ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <div className="absolute bottom-1 left-1 right-1 text-[10px] text-white bg-black/50 px-1 py-0.5 truncate">
+                                        {img.originalName || img.filename}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Video Changes (substantive) */}
+                            {Array.isArray(change.changes.videos) && change.changes.videos.length > 0 && (
+                              <div className="mt-4">
+                                <h6 className="font-medium text-gray-800 mb-2">Video Changes:</h6>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {change.changes.videos.map((vid: any, idx: number) => (
+                                    <div key={idx} className="relative aspect-video bg-gray-100 rounded border overflow-hidden">
+                                      <video
+                                        src={`http://localhost:3000${vid.url}`}
+                                        className="w-full h-full object-cover"
+                                        controls={false}
+                                      />
+                                      <div className="absolute bottom-1 left-1 right-1 text-[10px] text-white bg-black/50 px-1 py-0.5 truncate">
+                                        {vid.originalName || vid.filename}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )
                       )}
@@ -2793,10 +2835,27 @@ export function EnhancedAdminDashboard() {
                 const formData = new FormData(e.target as HTMLFormElement);
                 const data = Object.fromEntries(formData.entries());
 
+                // Coerce checkbox/string to boolean
+                if ("isActive" in data) {
+                  (data as any).isActive =
+                    (data as any).isActive === "on" || (data as any).isActive === "true";
+                }
+
+                // Normalize value to lowercase if present
+                if ("value" in data && typeof (data as any).value === "string") {
+                  (data as any).value = ((data as any).value as string).toLowerCase();
+                }
+
                 if (editingItem.type === "make") {
                   handleUpdateMake(editingItem.id, data);
                 } else {
-                  handleUpdateMetadata(editingItem.id, data);
+                  const mapped: any = {
+                    ...data,
+                    displayValue:
+                      (data as any).displayName ?? (editingItem as any).displayValue,
+                  };
+                  delete mapped.displayName;
+                  handleUpdateMetadata(editingItem.id, mapped);
                 }
               }}
               className="space-y-4"

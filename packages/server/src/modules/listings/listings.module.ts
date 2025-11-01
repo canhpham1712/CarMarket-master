@@ -5,6 +5,7 @@ import { ListingsService } from './listings.service';
 import { ListingDetail } from '../../entities/listing-detail.entity';
 import { CarDetail } from '../../entities/car-detail.entity';
 import { CarImage } from '../../entities/car-image.entity';
+import { CarVideo } from '../../entities/car-video.entity';
 import { User } from '../../entities/user.entity';
 import { ListingPendingChanges } from '../../entities/listing-pending-changes.entity';
 import { Transaction } from '../../entities/transaction.entity';
@@ -16,6 +17,7 @@ import { LogsModule } from '../logs/logs.module';
       ListingDetail,
       CarDetail,
       CarImage,
+      CarVideo,
       User,
       ListingPendingChanges,
       Transaction,

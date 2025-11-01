@@ -125,6 +125,44 @@ export class CreateCarImageDto {
   alt?: string;
 }
 
+export class CreateCarVideoDto {
+  @IsString()
+  @IsNotEmpty()
+  filename!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  originalName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  url!: string;
+
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
+
+  @IsOptional()
+  @IsNumber()
+  fileSize?: number;
+
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
+
+  @IsOptional()
+  @IsString()
+  alt?: string;
+
+  @IsOptional()
+  @IsNumber()
+  duration?: number;
+
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+}
+
 export class CreateListingDto {
   @IsString()
   @IsNotEmpty()
@@ -167,4 +205,10 @@ export class CreateListingDto {
   @ValidateNested({ each: true })
   @Type(() => CreateCarImageDto)
   images?: CreateCarImageDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCarVideoDto)
+  videos?: CreateCarVideoDto[];
 }

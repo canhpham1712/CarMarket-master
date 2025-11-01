@@ -7,12 +7,13 @@ import toast from "react-hot-toast";
 import {
   Car,
   Upload,
-  X,
   MapPin,
   DollarSign,
   FileText,
   Camera,
   Plus,
+  Video,
+  X,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -66,6 +67,7 @@ type ListingForm = z.infer<typeof listingSchema>;
 
 export function SellCarPage() {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedMakeId, setSelectedMakeId] = useState<string>("");
@@ -79,13 +81,14 @@ export function SellCarPage() {
     condition: "",
   });
   const navigate = useNavigate();
-  const { metadata, loading: metadataLoading } = useMetadata();
+  const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
+    watch,
   } = useForm<ListingForm>({
     resolver: zodResolver(listingSchema),
     defaultValues: {
@@ -95,6 +98,8 @@ export function SellCarPage() {
       country: "USA",
     },
   });
+
+  const currentModel = watch("model");
 
   // Load models when make is selected
   useEffect(() => {
@@ -109,8 +114,10 @@ export function SellCarPage() {
 
           try {
             // Fetch models for the selected make
+            const API_BASE_URL =
+              import.meta.env.VITE_API_URL || "http://localhost:3000/api";
             const response = await fetch(
-              `http://localhost:3000/api/metadata/makes/${selectedMakeId}/models`
+              `${API_BASE_URL}/metadata/makes/${selectedMakeId}/models`
             );
             const models = await response.json();
             setAvailableModels(models);
@@ -172,6 +179,39 @@ export function SellCarPage() {
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+
+    if (uploadedVideos.length + files.length > 2) {
+      toast.error(
+        "🎥 You can upload maximum 2 videos per listing. Please remove some videos first."
+      );
+      return;
+    }
+
+    const validFiles = files.filter((file) => {
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error(
+          `Video "${file.name}" is too large. Please choose a video smaller than 100MB.`
+        );
+        return false;
+      }
+      if (!file.type.match(/^video\/(mp4|webm|ogg|quicktime|x-msvideo)$/)) {
+        toast.error(
+          `"${file.name}" is not a supported video format. Please use MP4, WebM, OGG, MOV, or AVI.`
+        );
+        return false;
+      }
+      return true;
+    });
+
+    setUploadedVideos((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleVideoRemove = (index: number) => {
+    setUploadedVideos((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const toggleFeature = (feature: string) => {
     setSelectedFeatures((prev) =>
       prev.includes(feature)
@@ -198,16 +238,31 @@ export function SellCarPage() {
         imageUrls = uploadResponse.images;
       }
 
+      // Upload videos if any
+      let videoUrls: Array<{
+        filename: string;
+        url: string;
+        originalName: string;
+        fileSize: number;
+        mimeType: string;
+      }> = [];
+      if (uploadedVideos.length > 0) {
+        const uploadResponse =
+          await ListingService.uploadCarVideos(uploadedVideos);
+        videoUrls = uploadResponse.videos;
+      }
+
       // Prepare listing data
+      const priceType: string = data.priceType ?? "negotiable";
       const listingData = {
         title: data.title,
         description: data.description,
         price: data.price,
-        priceType: data.priceType,
+        priceType,
         location: data.location,
-        city: data.city,
-        state: data.state,
-        country: data.country,
+        city: data.city || "",
+        state: data.state || "",
+        country: data.country || "USA",
         carDetail: {
           make: data.make,
           model: data.model,
@@ -222,10 +277,10 @@ export function SellCarPage() {
           numberOfDoors: data.numberOfDoors || 4,
           numberOfSeats: data.numberOfSeats || 5,
           condition: data.condition,
-          vin: data.vin,
-          registrationNumber: data.registrationNumber,
-          previousOwners: data.previousOwners,
-          description: data.carDescription,
+          vin: data.vin || "",
+          registrationNumber: data.registrationNumber || "",
+          previousOwners: data.previousOwners ?? 0,
+          description: data.carDescription || "",
           features: selectedFeatures,
         },
         images: imageUrls.map((img, index) => ({
@@ -236,6 +291,14 @@ export function SellCarPage() {
           alt: `${data.make} ${data.model} image ${index + 1}`,
           fileSize: img.fileSize,
           mimeType: img.mimeType,
+        })),
+        videos: videoUrls.map((vid, index) => ({
+          filename: vid.filename,
+          originalName: vid.originalName,
+          url: vid.url,
+          alt: `${data.make} ${data.model} video ${index + 1}`,
+          fileSize: vid.fileSize,
+          mimeType: vid.mimeType,
         })),
       };
 
@@ -378,17 +441,23 @@ export function SellCarPage() {
                   Price Type
                 </label>
                 <EnhancedSelect
-                  options={
-                    metadata?.priceTypes?.map((type) => ({
-                      value: type.value,
-                      label: type.displayValue,
-                    })) || []
-                  }
+                  options={(metadata?.priceTypes || [])
+                    .filter((type) => type && type.value !== null && type.value !== undefined && String(type.value).trim() !== "")
+                    .map((type) => ({
+                      value: String(type.value),
+                      label: type.displayValue || String(type.value),
+                    }))}
                   value={formValues.priceType}
                   onValueChange={(value) =>
                     handleFormValueChange("priceType", value as string)
                   }
-                  placeholder="Select price type"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading price types..."
+                      : metadata?.priceTypes?.length === 0
+                        ? "No price types available"
+                        : "Select price type"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.priceType}
@@ -469,18 +538,27 @@ export function SellCarPage() {
                   options={
                     metadata?.makes?.map((make) => ({
                       value: make.id,
-                      label: make.displayName,
+                      label: make.displayName || make.name,
                     })) || []
                   }
                   value={selectedMakeId}
                   onValueChange={(value) => {
                     setSelectedMakeId(value as string);
                   }}
-                  placeholder="Select a make"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading makes..."
+                      : metadata?.makes?.length === 0
+                        ? "No makes available"
+                        : "Select a make"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.make}
                 />
+                {metadataError && (
+                  <p className="mt-1 text-xs text-red-600">{metadataError}</p>
+                )}
                 {errors.make && (
                   <p className="mt-1 text-sm text-red-600">
                     {errors.make.message}
@@ -496,9 +574,12 @@ export function SellCarPage() {
                   Model
                 </label>
                 <EnhancedSelect
+                  value={
+                    availableModels.find((m) => m.name === currentModel)?.id || ""
+                  }
                   options={availableModels.map((model) => ({
                     value: model.id,
-                    label: model.displayName,
+                    label: model.displayName || model.name,
                   }))}
                   onValueChange={(value) => {
                     const selectedModel = availableModels.find(
@@ -512,7 +593,13 @@ export function SellCarPage() {
                       }
                     }
                   }}
-                  placeholder="Select a model"
+                  placeholder={
+                    selectedMakeId && availableModels.length === 0
+                      ? "Loading models..."
+                      : selectedMakeId
+                        ? "Select a model"
+                        : "Select make first"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.model}
@@ -558,14 +645,20 @@ export function SellCarPage() {
                   options={
                     metadata?.bodyTypes?.map((type) => ({
                       value: type.value,
-                      label: type.displayValue,
+                      label: type.displayValue || type.value,
                     })) || []
                   }
                   value={formValues.bodyType}
                   onValueChange={(value) =>
                     handleFormValueChange("bodyType", value as string)
                   }
-                  placeholder="Select body type"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading body types..."
+                      : metadata?.bodyTypes?.length === 0
+                        ? "No body types available"
+                        : "Select body type"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.bodyType}
@@ -588,14 +681,20 @@ export function SellCarPage() {
                   options={
                     metadata?.fuelTypes?.map((type) => ({
                       value: type.value,
-                      label: type.displayValue,
+                      label: type.displayValue || type.value,
                     })) || []
                   }
                   value={formValues.fuelType}
                   onValueChange={(value) =>
                     handleFormValueChange("fuelType", value as string)
                   }
-                  placeholder="Select fuel type"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading fuel types..."
+                      : metadata?.fuelTypes?.length === 0
+                        ? "No fuel types available"
+                        : "Select fuel type"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.fuelType}
@@ -618,14 +717,20 @@ export function SellCarPage() {
                   options={
                     metadata?.transmissionTypes?.map((type) => ({
                       value: type.value,
-                      label: type.displayValue,
+                      label: type.displayValue || type.value,
                     })) || []
                   }
                   value={formValues.transmission}
                   onValueChange={(value) =>
                     handleFormValueChange("transmission", value as string)
                   }
-                  placeholder="Select transmission"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading transmissions..."
+                      : metadata?.transmissionTypes?.length === 0
+                        ? "No transmissions available"
+                        : "Select transmission"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.transmission}
@@ -714,14 +819,20 @@ export function SellCarPage() {
                   options={
                     metadata?.colors?.map((color) => ({
                       value: color.value,
-                      label: color.displayValue,
+                      label: color.displayValue || color.value,
                     })) || []
                   }
                   value={formValues.color}
                   onValueChange={(value) =>
                     handleFormValueChange("color", value as string)
                   }
-                  placeholder="Select color"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading colors..."
+                      : metadata?.colors?.length === 0
+                        ? "No colors available"
+                        : "Select color"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.color}
@@ -746,14 +857,20 @@ export function SellCarPage() {
                   options={
                     metadata?.conditions?.map((condition) => ({
                       value: condition.value,
-                      label: condition.displayValue,
+                      label: condition.displayValue || condition.value,
                     })) || []
                   }
                   value={formValues.condition}
                   onValueChange={(value) =>
                     handleFormValueChange("condition", value as string)
                   }
-                  placeholder="Select condition"
+                  placeholder={
+                    metadataLoading
+                      ? "Loading conditions..."
+                      : metadata?.conditions?.length === 0
+                        ? "No conditions available"
+                        : "Select condition"
+                  }
                   searchable={true}
                   multiple={false}
                   error={!!errors.condition}
@@ -894,6 +1011,72 @@ export function SellCarPage() {
                   onReorder={handleImageReorder}
                   onRemove={handleImageRemove}
                 />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Car Videos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Video className="w-5 h-5 mr-2" />
+              Car Videos (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  multiple
+                  accept="video/*"
+                  onChange={handleVideoUpload}
+                  className="hidden"
+                  id="video-upload"
+                />
+                <label
+                  htmlFor="video-upload"
+                  className="cursor-pointer flex flex-col items-center space-y-2"
+                >
+                  <Video className="w-12 h-12 text-gray-400" />
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium text-blue-600 hover:text-blue-500">
+                      Click to upload
+                    </span>{" "}
+                    or drag and drop
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    MP4, WebM, OGG, MOV, AVI up to 100MB each (Max 2 videos)
+                  </p>
+                </label>
+              </div>
+
+              {uploadedVideos.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {uploadedVideos.map((file, index) => (
+                    <div
+                      key={index}
+                      className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200"
+                    >
+                      <video
+                        src={URL.createObjectURL(file)}
+                        className="w-full h-full object-cover"
+                        controls={false}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleVideoRemove(index)}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                        {file.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </CardContent>

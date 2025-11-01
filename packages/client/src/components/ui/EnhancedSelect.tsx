@@ -46,6 +46,8 @@ export const EnhancedSelect = React.forwardRef<
     const selectRef = React.useRef<HTMLDivElement>(null);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
 
+    // (debug logs removed)
+
     // Initialize selected values
     React.useEffect(() => {
       if (multiple && Array.isArray(value)) {

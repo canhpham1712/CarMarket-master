@@ -111,7 +111,6 @@ export const useMetadata = () => {
         setMetadata(data);
       } catch (err) {
         setError("Failed to load metadata");
-        console.error("Failed to fetch metadata:", err);
       } finally {
         setLoading(false);
       }

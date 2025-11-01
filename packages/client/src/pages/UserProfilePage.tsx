@@ -30,6 +30,18 @@ export function UserProfilePage() {
   });
 
   useEffect(() => {
+    // If no id is provided (e.g., accessing /profile route), redirect to current user's profile
+    if (!id && currentUser) {
+      navigate(`/users/${currentUser.id}`, { replace: true });
+      return;
+    }
+
+    // If no id and no current user, redirect to login
+    if (!id && !currentUser) {
+      navigate("/login");
+      return;
+    }
+
     const fetchUserProfile = async () => {
       if (!id) return;
 
@@ -62,7 +74,7 @@ export function UserProfilePage() {
     };
 
     fetchUserProfile();
-  }, [id, navigate]);
+  }, [id, navigate, currentUser]);
 
   const handlePageChange = (newPage: number) => {
     const fetchListings = async () => {

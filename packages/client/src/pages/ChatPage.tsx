@@ -104,6 +104,7 @@ export function ChatPage() {
         unsubscribeTyping();
       };
     }
+    return undefined;
   }, [conversationId, user?.id]);
 
   const fetchConversation = async () => {
@@ -348,7 +349,7 @@ export function ChatPage() {
               src={
                 otherUser.profileImage
                   ? `http://localhost:3000${otherUser.profileImage}`
-                  : undefined
+                  : ""
               }
               alt={`${otherUser.firstName} ${otherUser.lastName}`}
               size="md"

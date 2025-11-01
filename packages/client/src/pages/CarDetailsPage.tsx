@@ -200,6 +200,7 @@ export function CarDetailsPage() {
   }
 
   const images = listing.carDetail.images || [];
+  const videos = listing.carDetail.videos || [];
   const currentImage = images[selectedImageIndex];
 
   return (
@@ -261,6 +262,33 @@ export function CarDetailsPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Videos Section */}
+          {videos.length > 0 && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Videos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {videos.map((video) => (
+                    <div key={video.id} className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                      <video
+                        src={`http://localhost:3000${video.url}`}
+                        controls
+                        className="w-full h-full object-cover"
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                      {video.alt && (
+                        <p className="mt-2 text-sm text-gray-600">{video.alt}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Details Section */}
@@ -438,7 +466,7 @@ export function CarDetailsPage() {
                     src={
                       listing.seller.profileImage
                         ? `http://localhost:3000${listing.seller.profileImage}`
-                        : undefined
+                        : ""
                     }
                     alt={`${listing.seller.firstName} ${listing.seller.lastName}`}
                     size="lg"

@@ -8,6 +8,7 @@ import { CarDetailsPage } from "./pages/CarDetailsPage";
 import { SellCarPage } from "./pages/SellCarPage";
 import { EditListingPage } from "./pages/EditListingPage";
 import { UserProfilePage } from "./pages/UserProfilePage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { MyListingsPage } from "./pages/MyListingsPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import { ChatPage } from "./pages/ChatPage";
@@ -92,7 +93,7 @@ function App() {
                     path="/profile"
                     element={
                       <ProtectedRoute>
-                        <UserProfilePage />
+                        <ProfilePage />
                       </ProtectedRoute>
                     }
                   />

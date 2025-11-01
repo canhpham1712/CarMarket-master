@@ -4,6 +4,7 @@ import { TypeOrmModuleOptions, TypeOrmOptionsFactory } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { CarDetail } from '../entities/car-detail.entity';
 import { CarImage } from '../entities/car-image.entity';
+import { CarVideo } from '../entities/car-video.entity';
 import { ListingDetail } from '../entities/listing-detail.entity';
 import { Transaction } from '../entities/transaction.entity';
 import { CarMake } from '../entities/car-make.entity';
@@ -49,6 +50,7 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         User,
         CarDetail,
         CarImage,
+        CarVideo,
         ListingDetail,
         Transaction,
         CarMake,
@@ -68,7 +70,8 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         CommentReaction,
         CommentReport,
       ],
-      synchronize: this.configService.get<string>('NODE_ENV') === 'development',
+      synchronize: false,
+      migrationsRun: true,
       logging: this.configService.get<string>('NODE_ENV') === 'development' ? ['error'] : false,
       migrations: ['dist/migrations/*{.ts,.js}'],
       migrationsTableName: 'migrations',

@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggingExceptionFilter } from './common/filters/logging-exception.filter';
 import { LogsService } from './modules/logs/logs.service';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -51,6 +52,16 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
+  // Swagger setup
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('CarMarket API')
+    .setDescription('API documentation and live testing')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
+
   const port = configService.get<number>('PORT', 3000);
 
   app.enableShutdownHooks();
@@ -59,6 +70,7 @@ async function bootstrap() {
   await app.listen(port);
   
   console.log(`🚀 Server running on http://localhost:${port}`);
+  console.log(`📘 Swagger docs on http://localhost:${port}/api/docs`);
   console.log(`🔌 Socket.IO server running on /chat namespace`);
 }
 void bootstrap();
