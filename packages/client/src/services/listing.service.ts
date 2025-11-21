@@ -39,6 +39,16 @@ export interface CreateListingPayload {
     fileSize?: number;
     mimeType?: string;
   }[];
+  videos?: {
+    filename: string;
+    originalName: string;
+    url: string;
+    alt?: string;
+    fileSize?: number;
+    mimeType?: string;
+    duration?: number;
+    thumbnailUrl?: string;
+  }[];
 }
 
 export class ListingService {

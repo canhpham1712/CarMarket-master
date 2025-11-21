@@ -23,7 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/Card";
-import { ListingService } from "../services/listing.service";
+import { ListingService, type CreateListingPayload } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import type { ListingDetail } from "../types";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
@@ -389,15 +389,15 @@ export function EditListingPage() {
         })),
       ];
 
-      const updateData = {
+      const updateData: Partial<CreateListingPayload> = {
         title: data.title,
         description: data.description,
         price: data.price,
-        priceType: data.priceType,
+        ...(data.priceType !== undefined && { priceType: data.priceType }),
         location: data.location,
-        city: data.city,
-        state: data.state,
-        country: data.country,
+        ...(data.city !== undefined && { city: data.city }),
+        ...(data.state !== undefined && { state: data.state }),
+        ...(data.country !== undefined && { country: data.country }),
         carDetail: {
           make: data.make,
           model: data.model,
@@ -412,15 +412,15 @@ export function EditListingPage() {
           numberOfDoors: data.numberOfDoors || 4,
           numberOfSeats: data.numberOfSeats || 5,
           condition: data.condition,
-          vin: data.vin,
-          registrationNumber: data.registrationNumber,
-          previousOwners: data.previousOwners,
-          description: data.carDescription,
-          features: selectedFeatures,
+          ...(data.vin !== undefined && { vin: data.vin }),
+          ...(data.registrationNumber !== undefined && { registrationNumber: data.registrationNumber }),
+          ...(data.previousOwners !== undefined && { previousOwners: data.previousOwners }),
+          ...(data.carDescription !== undefined && { description: data.carDescription }),
+          ...(selectedFeatures.length > 0 && { features: selectedFeatures }),
         },
         // Include all images and videos
-        images: allImages,
-        videos: allVideos,
+        ...(allImages.length > 0 && { images: allImages }),
+        ...(allVideos.length > 0 && { videos: allVideos }),
       };
 
       const response = await ListingService.updateListing(id, updateData);
