@@ -537,7 +537,7 @@ export function AdminDashboard() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-900">
-              Car Makes Management
+              Car Makes Management ({adminMetadata.makes.length} makes)
             </h2>
             <Button
               onClick={() => setNewItemForm({ type: "make", visible: true })}
