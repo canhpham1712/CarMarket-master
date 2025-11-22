@@ -1,5 +1,5 @@
 import { apiClient } from "../lib/api";
-import type { ListingDetail, SearchFilters, SearchResponse } from "../types";
+import type { ListingDetail, SearchFilters, SearchResponse, User } from "../types";
 
 export interface CreateListingPayload {
   title: string;
@@ -137,5 +137,22 @@ export class ListingService {
 
   static async updateListingStatus(listingId: string, status: string) {
     return apiClient.put(`/listings/${listingId}/status`, { status });
+  }
+
+  static async getListingBuyers(listingId: string): Promise<User[]> {
+    return apiClient.get<User[]>(`/listings/${listingId}/buyers`);
+  }
+
+  static async markAsSold(
+    listingId: string,
+    data: {
+      buyerId: string;
+      amount: number;
+      paymentMethod: string;
+      paymentReference?: string;
+      notes?: string;
+    }
+  ): Promise<{ listing: ListingDetail; transaction: any }> {
+    return apiClient.post(`/listings/${listingId}/mark-as-sold`, data);
   }
 }

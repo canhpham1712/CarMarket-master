@@ -31,7 +31,7 @@ interface CarCardProps {
   showActions?: boolean;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onMarkAsSold?: (id: string) => void;
+  onMarkAsSold?: (listing: ListingDetail) => void;
   onFavoriteChange?: (listingId: string, isFavorite: boolean) => void;
 }
 
@@ -362,7 +362,7 @@ export function CarCard({
                     className="flex-1 bg-green-600 text-white hover:bg-green-700"
                     onClick={(e: React.MouseEvent) => {
                       e.preventDefault();
-                      onMarkAsSold?.(listing.id);
+                      onMarkAsSold?.(listing);
                     }}
                   >
                     Mark as Sold

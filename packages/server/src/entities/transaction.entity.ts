@@ -84,8 +84,6 @@ export class Transaction {
   updatedAt!: Date;
 
   // Relationships
-  // Note: No buyer relationship for offline marketplace - buyers and sellers contact directly
-
   @ManyToOne(() => User, (user) => user.sales, {
     onDelete: 'CASCADE',
   })
@@ -94,6 +92,15 @@ export class Transaction {
 
   @Column()
   sellerId!: string;
+
+  @ManyToOne(() => User, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'buyerId' })
+  buyer!: User;
+
+  @Column({ nullable: true })
+  buyerId!: string | null;
 
   @ManyToOne(() => ListingDetail, (listing) => listing.transactions, {
     onDelete: 'CASCADE',

@@ -14,6 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/Card";
+import { CarCard } from "../components/CarCard";
+import { MarkAsSoldDialog } from "../components/listings/MarkAsSoldDialog";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/Dialog";
-import { CarCard } from "../components/CarCard";
 import { useAuthStore } from "../store/auth";
 import { ListingService } from "../services/listing.service";
 import type { ListingDetail } from "../types";
@@ -34,8 +35,8 @@ export function MyListingsPage() {
   const [userListings, setUserListings] = useState<ListingDetail[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [sortBy, setSortBy] = useState<string>("newest");
-  const [showSoldConfirm, setShowSoldConfirm] = useState(false);
-  const [listingToMarkSold, setListingToMarkSold] = useState<string | null>(
+  const [showSoldDialog, setShowSoldDialog] = useState(false);
+  const [listingToMarkSold, setListingToMarkSold] = useState<ListingDetail | null>(
     null
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -131,30 +132,14 @@ export function MyListingsPage() {
     }));
   };
 
-  const handleMarkAsSold = (id: string) => {
-    setListingToMarkSold(id);
-    setShowSoldConfirm(true);
+  const handleMarkAsSold = (listing: ListingDetail) => {
+    setListingToMarkSold(listing);
+    setShowSoldDialog(true);
   };
 
-  const confirmMarkAsSold = async () => {
-    if (!listingToMarkSold) return;
-
-    try {
-      await ListingService.updateListingStatus(listingToMarkSold, "sold");
-      setUserListings((prev) =>
-        prev.map((listing) =>
-          listing.id === listingToMarkSold
-            ? { ...listing, status: "sold" }
-            : listing
-        )
-      );
-      toast.success("Listing marked as sold successfully");
-    } catch (error: any) {
-      toast.error("Failed to mark listing as sold");
-    } finally {
-      setShowSoldConfirm(false);
-      setListingToMarkSold(null);
-    }
+  const handleMarkAsSoldSuccess = () => {
+    // Reload listings
+    fetchUserListings();
   };
 
   const sortListings = (listingsToSort: ListingDetail[]) => {
@@ -388,29 +373,18 @@ export function MyListingsPage() {
         </Card>
       </div>
 
-      {/* Mark as Sold Confirmation Dialog */}
-      <Dialog open={showSoldConfirm} onOpenChange={setShowSoldConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mark as Sold</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to mark this listing as sold? This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSoldConfirm(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmMarkAsSold}
-              className="bg-green-600 text-white hover:bg-green-700"
-            >
-              Mark as Sold
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Mark as Sold Dialog */}
+      {listingToMarkSold && (
+        <MarkAsSoldDialog
+          listing={listingToMarkSold}
+          open={showSoldDialog}
+          onClose={() => {
+            setShowSoldDialog(false);
+            setListingToMarkSold(null);
+          }}
+          onSuccess={handleMarkAsSoldSuccess}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

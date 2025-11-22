@@ -15,6 +15,7 @@ export interface User {
   provider?: string;
   createdAt: string;
   updatedAt: string;
+  ratingStats?: RatingStats;
 }
 
 export interface AuthResponse {
@@ -157,4 +158,53 @@ export interface CreateListingData {
   country?: string;
   carDetail: Omit<CarDetail, "id" | "images">;
   images?: Omit<CarImage, "id" | "carDetailId">[];
+}
+
+export interface SellerRating {
+  id: string;
+  sellerId: string;
+  buyerId: string;
+  transactionId?: string | null;
+  rating: number; // 1-5
+  comment?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  seller?: User;
+  buyer?: User;
+  transaction?: any;
+}
+
+export interface RatingStats {
+  averageRating: number;
+  totalRatings: number;
+  ratingDistribution: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
+}
+
+export interface CreateRatingRequest {
+  sellerId: string;
+  rating: number;
+  comment?: string;
+  transactionId?: string;
+}
+
+export interface UpdateRatingRequest {
+  rating?: number;
+  comment?: string;
+}
+
+export interface RatingQueryParams {
+  sellerId?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface RatingsResponse {
+  ratings: SellerRating[];
+  pagination: PaginationInfo;
 }

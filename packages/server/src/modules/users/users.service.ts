@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../../entities/user.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
+import { SellerRating } from '../../entities/seller-rating.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
@@ -19,9 +20,11 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(ListingDetail)
     private readonly listingRepository: Repository<ListingDetail>,
+    @InjectRepository(SellerRating)
+    private readonly ratingRepository: Repository<SellerRating>,
   ) {}
 
-  async getProfile(userId: string): Promise<User> {
+  async getProfile(userId: string): Promise<User & { ratingStats?: any }> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: [
@@ -46,7 +49,50 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    // Calculate rating statistics
+    const ratingStats = await this.getRatingStats(userId);
+
+    return {
+      ...user,
+      ratingStats,
+    } as User & { ratingStats: any };
+  }
+
+  async getRatingStats(userId: string) {
+    const [ratings, count] = await this.ratingRepository.findAndCount({
+      where: { sellerId: userId },
+    });
+
+    if (count === 0) {
+      return {
+        averageRating: 0,
+        totalRatings: 0,
+        ratingDistribution: {
+          1: 0,
+          2: 0,
+          3: 0,
+          4: 0,
+          5: 0,
+        },
+      };
+    }
+
+    const sum = ratings.reduce((acc, rating) => acc + rating.rating, 0);
+    const averageRating = Number((sum / count).toFixed(2));
+
+    const ratingDistribution = {
+      1: ratings.filter((r) => r.rating === 1).length,
+      2: ratings.filter((r) => r.rating === 2).length,
+      3: ratings.filter((r) => r.rating === 3).length,
+      4: ratings.filter((r) => r.rating === 4).length,
+      5: ratings.filter((r) => r.rating === 5).length,
+    };
+
+    return {
+      averageRating,
+      totalRatings: count,
+      ratingDistribution,
+    };
   }
 
   async updateProfile(

@@ -19,6 +19,7 @@ import { Permission } from '../entities/permission.entity';
 import { Role } from '../entities/role.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { AuditLog } from '../entities/audit-log.entity';
+import { SellerRating } from '../entities/seller-rating.entity';
 
 // Load environment variables
 config();
@@ -60,6 +61,7 @@ export const AppDataSource = new DataSource({
     Role,
     UserRole,
     AuditLog,
+    SellerRating,
   ],
   migrations: ['src/migrations/*.ts'],
   synchronize: false,

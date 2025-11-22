@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Calendar, Phone, Car } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Phone, Car, Star } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import {
   Card,
@@ -10,9 +10,13 @@ import {
 } from "../components/ui/Card";
 import { Avatar } from "../components/ui/Avatar";
 import { CarCard } from "../components/CarCard";
+import { RatingDisplay } from "../components/ratings/RatingDisplay";
+import { RatingList } from "../components/ratings/RatingList";
+import { RatingForm } from "../components/ratings/RatingForm";
 import { ProfileService } from "../services/profile.service";
+import { RatingService } from "../services/rating.service";
 import { useAuthStore } from "../store/auth";
-import type { User as UserType, ListingDetail } from "../types";
+import type { User as UserType, ListingDetail, RatingStats } from "../types";
 import toast from "react-hot-toast";
 
 export function UserProfilePage() {
@@ -22,6 +26,8 @@ export function UserProfilePage() {
   const [user, setUser] = useState<UserType | null>(null);
   const [listings, setListings] = useState<ListingDetail[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
+  const [showRatingForm, setShowRatingForm] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 12,
@@ -47,13 +53,19 @@ export function UserProfilePage() {
 
       try {
         setLoading(true);
-        const [userData, listingsData] = await Promise.all([
+        const [userData, listingsData, statsData] = await Promise.all([
           ProfileService.getUserProfileById(id),
           ProfileService.getUserListingsById(id, 1, 12),
+          RatingService.getSellerRatingStats(id).catch(() => ({
+            averageRating: 0,
+            totalRatings: 0,
+            ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+          })),
         ]);
 
         setUser(userData);
         setListings((listingsData as any).listings || []);
+        setRatingStats(statsData);
         setPagination(
           (listingsData as any).pagination || {
             page: 1,
@@ -170,6 +182,13 @@ export function UserProfilePage() {
                 </h2>
                 <p className="text-gray-600 mb-4">{user.email}</p>
 
+                {/* Rating Display */}
+                {ratingStats && ratingStats.totalRatings > 0 && (
+                  <div className="mb-4">
+                    <RatingDisplay stats={ratingStats} size="md" />
+                  </div>
+                )}
+
                 {user.bio && (
                   <p className="text-gray-700 mb-4 text-sm">{user.bio}</p>
                 )}
@@ -209,8 +228,57 @@ export function UserProfilePage() {
             </Card>
           </div>
 
-          {/* Listings */}
-          <div className="lg:col-span-2">
+          {/* Listings and Ratings */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Ratings Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Star className="w-5 h-5 mr-2" />
+                    Seller Ratings
+                  </div>
+                  {!isOwnProfile && currentUser && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRatingForm(!showRatingForm)}
+                    >
+                      {showRatingForm ? 'Cancel' : 'Rate Seller'}
+                    </Button>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {showRatingForm && !isOwnProfile && currentUser && (
+                  <div className="mb-6 pb-6 border-b border-gray-200">
+                    <RatingForm
+                      sellerId={user.id}
+                      onSuccess={() => {
+                        setShowRatingForm(false);
+                        // Reload rating stats
+                        RatingService.getSellerRatingStats(user.id)
+                          .then(setRatingStats)
+                          .catch(() => {});
+                      }}
+                      onCancel={() => setShowRatingForm(false)}
+                    />
+                  </div>
+                )}
+                <RatingList
+                  sellerId={user.id}
+                  currentUserId={currentUser?.id}
+                  onRatingUpdate={() => {
+                    // Reload rating stats when ratings are updated
+                    RatingService.getSellerRatingStats(user.id)
+                      .then(setRatingStats)
+                      .catch(() => {});
+                  }}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Listings Section */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">

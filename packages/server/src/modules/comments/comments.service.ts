@@ -6,7 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, IsNull } from 'typeorm';
 import { ListingComment } from '../../entities/listing-comment.entity';
 import { CommentReaction } from '../../entities/comment-reaction.entity';
 import { CommentReport, ReportStatus } from '../../entities/comment-report.entity';
@@ -199,19 +199,6 @@ export class CommentsService {
     });
 
     // WebSocket event will be emitted by the controller/gateway
-  }
-
-  async getCommentById(commentId: string): Promise<ListingComment> {
-    const comment = await this.commentRepository.findOne({
-      where: { id: commentId },
-      relations: ['user', 'listing', 'parentComment'],
-    });
-
-    if (!comment) {
-      throw new NotFoundException('Comment not found');
-    }
-
-    return comment;
   }
 
   async getCommentsByListing(listingId: string, query: CommentQueryDto): Promise<{
@@ -420,11 +407,11 @@ export class CommentsService {
         listingId: comment.listingId,
         isPinned: true,
         isDeleted: false,
-        parentCommentId: null, // Only root comments
+        parentCommentId: IsNull(), // Only root comments
       },
     });
 
-    let unpinnedCommentId: string | undefined;
+    let unpinnedCommentId: string | undefined = undefined;
     if (previouslyPinnedComment && previouslyPinnedComment.id !== commentId) {
       await this.commentRepository.update(previouslyPinnedComment.id, {
         isPinned: false,
@@ -438,7 +425,7 @@ export class CommentsService {
     });
 
     // WebSocket event will be emitted by the controller/gateway
-    return { unpinnedCommentId };
+    return unpinnedCommentId ? { unpinnedCommentId } : {};
   }
 
   async unpinComment(commentId: string, userId: string): Promise<void> {

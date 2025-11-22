@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ChatConversation } from '../../entities/chat-conversation.entity';
+import { User } from '../../entities/user.entity';
 import {
   ListingDetail,
   ListingStatus,
@@ -21,6 +23,7 @@ import {
 } from '../../entities/transaction.entity';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { MarkAsSoldDto } from './dto/mark-as-sold.dto';
 import { hasActualChanges } from '../../utils/value-comparison.util';
 import { LogsService } from '../logs/logs.service';
 
@@ -39,6 +42,10 @@ export class ListingsService {
     private readonly pendingChangesRepository: Repository<ListingPendingChanges>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(ChatConversation)
+    private readonly conversationRepository: Repository<ChatConversation>,
     private readonly logsService: LogsService,
   ) {}
 
@@ -708,5 +715,124 @@ export class ListingsService {
     }
 
     return this.findOne(id);
+  }
+
+  async markAsSold(
+    listingId: string,
+    sellerId: string,
+    markAsSoldDto: MarkAsSoldDto,
+  ): Promise<{ listing: ListingDetail; transaction: Transaction }> {
+    // Find listing
+    const listing = await this.listingRepository.findOne({
+      where: { id: listingId },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    // Verify ownership
+    if (listing.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only mark your own listings as sold');
+    }
+
+    // Check if already sold
+    if (listing.soldAt) {
+      throw new BadRequestException('This listing has already been marked as sold');
+    }
+
+    // Verify buyer exists
+    const buyer = await this.userRepository.findOne({
+      where: { id: markAsSoldDto.buyerId },
+    });
+
+    if (!buyer) {
+      throw new NotFoundException('Buyer not found');
+    }
+
+    // Prevent self-sale
+    if (markAsSoldDto.buyerId === sellerId) {
+      throw new BadRequestException('You cannot sell to yourself');
+    }
+
+    // Generate transaction number
+    const year = new Date().getFullYear();
+    const allTransactions = await this.transactionRepository.find();
+    const matchingTransactions = allTransactions.filter((t) =>
+      t.transactionNumber.startsWith(`TXN-${year}-`),
+    );
+    const count = matchingTransactions.length;
+    const transactionNumber = `TXN-${year}-${String(count + 1).padStart(3, '0')}`;
+
+    // Calculate platform fee (e.g., 5% of sale amount)
+    const platformFee = Number((markAsSoldDto.amount * 0.05).toFixed(2));
+    const totalAmount = markAsSoldDto.amount + platformFee;
+
+    // Create transaction
+    const transaction = this.transactionRepository.create({
+      transactionNumber,
+      sellerId,
+      buyerId: markAsSoldDto.buyerId,
+      listingId,
+      amount: markAsSoldDto.amount,
+      platformFee,
+      totalAmount,
+      paymentMethod: markAsSoldDto.paymentMethod,
+      paymentReference: markAsSoldDto.paymentReference || null,
+      notes: markAsSoldDto.notes || null,
+      status: TransactionStatus.COMPLETED,
+      completedAt: new Date(),
+    } as Transaction);
+
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    // Mark listing as sold
+    await this.listingRepository.update(listingId, {
+      soldAt: new Date(),
+      isActive: false,
+      status: ListingStatus.SOLD,
+    });
+
+    // Reload listing with relations
+    const updatedListing = await this.findOne(listingId);
+
+    return {
+      listing: updatedListing,
+      transaction: savedTransaction,
+    };
+  }
+
+  async getListingBuyers(listingId: string, sellerId: string): Promise<User[]> {
+    // Verify listing exists and belongs to seller
+    const listing = await this.listingRepository.findOne({
+      where: { id: listingId },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (listing.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only view buyers for your own listings');
+    }
+
+    // Get all conversations for this listing
+    const conversations = await this.conversationRepository.find({
+      where: {
+        listingId,
+        sellerId,
+      },
+      relations: ['buyer'],
+    });
+
+    // Extract unique buyers
+    const buyerMap = new Map<string, User>();
+    conversations.forEach((conv) => {
+      if (conv.buyer && !buyerMap.has(conv.buyerId)) {
+        buyerMap.set(conv.buyerId, conv.buyer);
+      }
+    });
+
+    return Array.from(buyerMap.values());
   }
 }
