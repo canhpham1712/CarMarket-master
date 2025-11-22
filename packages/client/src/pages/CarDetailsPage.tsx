@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,6 +11,11 @@ import {
   CheckCircle,
   AlertTriangle,
   MessageCircle,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  X,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import {
@@ -46,6 +51,13 @@ export function CarDetailsPage() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPhoneNumber, setShowPhoneNumber] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [modalImageIndex, setModalImageIndex] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const imageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -166,6 +178,100 @@ export function CarDetailsPage() {
     }
   };
 
+  const openImageModal = (index: number) => {
+    if (!listing) return;
+    const images = listing.carDetail.images || [];
+    if (index >= 0 && index < images.length) {
+      setModalImageIndex(index);
+      setZoomLevel(1);
+      setPanPosition({ x: 0, y: 0 });
+      setIsImageModalOpen(true);
+    }
+  };
+
+  const closeImageModal = () => {
+    setIsImageModalOpen(false);
+    setZoomLevel(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const handlePreviousImage = () => {
+    if (!listing) return;
+    const images = listing.carDetail.images || [];
+    const newIndex = modalImageIndex > 0 ? modalImageIndex - 1 : images.length - 1;
+    setModalImageIndex(newIndex);
+    setZoomLevel(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const handleNextImage = () => {
+    if (!listing) return;
+    const images = listing.carDetail.images || [];
+    const newIndex = modalImageIndex < images.length - 1 ? modalImageIndex + 1 : 0;
+    setModalImageIndex(newIndex);
+    setZoomLevel(1);
+    setPanPosition({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoomLevel > 1) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && zoomLevel > 1) {
+      setPanPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoomLevel((prev) => Math.max(0.5, Math.min(3, prev + delta)));
+    }
+  };
+
+  // Keyboard handlers
+  useEffect(() => {
+    if (!isImageModalOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closeImageModal();
+      } else if (e.key === "ArrowLeft") {
+        handlePreviousImage();
+      } else if (e.key === "ArrowRight") {
+        handleNextImage();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isImageModalOpen, modalImageIndex, listing]);
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -223,7 +329,10 @@ export function CarDetailsPage() {
             <CardContent className="p-0">
               {images.length > 0 ? (
                 <>
-                  <div className="aspect-video bg-gray-200 overflow-hidden rounded-t-lg">
+                  <div 
+                    className="aspect-video bg-gray-200 overflow-hidden rounded-t-lg cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => openImageModal(selectedImageIndex)}
+                  >
                     <img
                       src={`http://localhost:3000${currentImage.url}`}
                       alt={listing.title}
@@ -237,8 +346,11 @@ export function CarDetailsPage() {
                         {images.map((image, index) => (
                           <button
                             key={image.id}
-                            onClick={() => setSelectedImageIndex(index)}
-                            className={`aspect-square rounded-lg overflow-hidden border-2 ${
+                            onClick={() => {
+                              setSelectedImageIndex(index);
+                              openImageModal(index);
+                            }}
+                            className={`aspect-square rounded-lg overflow-hidden border-2 cursor-pointer ${
                               index === selectedImageIndex
                                 ? "border-blue-500"
                                 : "border-gray-200 hover:border-gray-300"
@@ -592,6 +704,116 @@ export function CarDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Image Modal with Zoom */}
+      {isImageModalOpen && listing && images.length > 0 && images[modalImageIndex] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={closeImageModal}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          {/* Close Button */}
+          <button
+            onClick={closeImageModal}
+            className="absolute top-4 right-4 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Navigation Buttons */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePreviousImage();
+                }}
+                className="absolute left-4 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full p-3 transition-colors"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNextImage();
+                }}
+                className="absolute right-4 z-10 bg-white/10 hover:bg-white/20 text-white rounded-full p-3 transition-colors"
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          {/* Zoom Controls */}
+          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleZoomIn();
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+              aria-label="Zoom in"
+            >
+              <ZoomIn className="w-5 h-5" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleZoomOut();
+              }}
+              className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors"
+              aria-label="Zoom out"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+            {zoomLevel !== 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResetZoom();
+                }}
+                className="bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors text-xs"
+                aria-label="Reset zoom"
+              >
+                100%
+              </button>
+            )}
+          </div>
+
+          {/* Image Counter */}
+          {images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-white/10 text-white px-4 py-2 rounded-full text-sm">
+              {modalImageIndex + 1} / {images.length}
+            </div>
+          )}
+
+          {/* Image Container */}
+          <div
+            className="relative max-w-[90vw] max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onWheel={handleWheel}
+            style={{ cursor: zoomLevel > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
+          >
+            <img
+              ref={imageRef}
+              src={`http://localhost:3000${images[modalImageIndex]?.url}`}
+              alt={`Car image ${modalImageIndex + 1}`}
+              className="max-w-full max-h-[90vh] object-contain transition-transform duration-200"
+              style={{
+                transform: `scale(${zoomLevel}) translate(${panPosition.x / zoomLevel}px, ${panPosition.y / zoomLevel}px)`,
+                transformOrigin: "center center",
+              }}
+              draggable={false}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
