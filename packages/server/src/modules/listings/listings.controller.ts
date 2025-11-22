@@ -20,6 +20,10 @@ import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../../common/guards/permission.guard';
+import { ResourceGuard } from '../../common/guards/resource.guard';
+import { RequirePermission } from '../../common/decorators/permission.decorator';
+import { RequireResource, RequireOwnership } from '../../common/decorators/resource.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
 
@@ -27,7 +31,8 @@ import { User } from '../../entities/user.entity';
 export class ListingsController {
   constructor(private readonly listingsService: ListingsService) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('listing:create')
   @Post()
   create(
     @CurrentUser() user: User,
@@ -36,6 +41,7 @@ export class ListingsController {
     return this.listingsService.create(user.id, createListingDto);
   }
 
+  // Public endpoints - no permission required
   @Get()
   findAll(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
@@ -49,7 +55,10 @@ export class ListingsController {
     return this.listingsService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -59,13 +68,17 @@ export class ListingsController {
     return this.listingsService.update(id, user.id, updateListingDto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:delete')
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: User) {
     return this.listingsService.remove(id, user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('listing:create')
   @Post('upload-images')
   @UseInterceptors(
     FilesInterceptor('images', 10, {
@@ -117,7 +130,8 @@ export class ListingsController {
     return { images };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('listing:create')
   @Post('upload-videos')
   @UseInterceptors(
     FilesInterceptor('videos', 2, {
@@ -169,13 +183,19 @@ export class ListingsController {
     return { videos };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:read')
   @Get(':id/pending-changes')
   getPendingChanges(@Param('id') id: string) {
     return this.listingsService.getPendingChanges(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Put(':id/pending-changes/:changeId/apply')
   applyPendingChanges(
     @Param('id') id: string,
@@ -185,7 +205,10 @@ export class ListingsController {
     return this.listingsService.applyPendingChanges(id, changeId, user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Put(':id/pending-changes/:changeId/reject')
   rejectPendingChanges(
     @Param('id') _id: string,
@@ -200,7 +223,10 @@ export class ListingsController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Put(':id/status')
   updateStatus(
     @Param('id') id: string,

@@ -8,7 +8,8 @@ export interface User {
   bio?: string;
   location?: string;
   dateOfBirth?: string;
-  role: "user" | "admin";
+  role?: "user" | "admin"; // Deprecated: kept for backward compatibility
+  roles?: string[]; // RBAC role names (e.g., ['admin', 'seller'])
   isActive: boolean;
   isEmailVerified: boolean;
   provider?: string;

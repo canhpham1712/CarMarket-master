@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PermissionGate } from "../components/PermissionGate";
+import { usePermissions } from "../hooks/usePermissions";
 import {
   Users,
   Car,
@@ -243,18 +245,35 @@ export function EnhancedAdminDashboard() {
     try {
       setLoading(true);
       const [statsData, analyticsData, metadataData] = await Promise.all([
-        AdminService.getDashboardStats(),
-        AdminService.getAnalyticsOverview(),
-        AdminService.getAllMetadataForAdmin().catch(() => null), // Don't fail if metadata fails
+        AdminService.getDashboardStats().catch((err) => {
+          console.error("Failed to load dashboard stats:", err);
+          return null;
+        }),
+        AdminService.getAnalyticsOverview().catch((err) => {
+          console.error("Failed to load analytics:", err);
+          return null;
+        }),
+        AdminService.getAllMetadataForAdmin().catch((err) => {
+          console.error("Failed to load metadata:", err);
+          return null;
+        }),
       ]);
 
-      setStats({ ...statsData, ...analyticsData });
-      setAdminMetadata(metadataData);
+      if (statsData) {
+        setStats({ ...statsData, ...(analyticsData || {}) });
+      }
+      if (metadataData) {
+        setAdminMetadata(metadataData);
+      }
       
       // Load roles for RBAC functionality
-      await fetchRoles();
-    } catch (error) {
-      toast.error("Failed to load dashboard data");
+      await fetchRoles().catch((err) => {
+        console.error("Failed to load roles:", err);
+      });
+    } catch (error: any) {
+      console.error("Failed to load dashboard data:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load dashboard data";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -866,59 +885,75 @@ export function EnhancedAdminDashboard() {
             onValueChange={(value) => handleTabChange(value as any)}
           >
             <TabsList className="grid w-full grid-cols-9">
-              <TabsTrigger
-                value="overview"
-                className="flex items-center space-x-2"
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span>Overview</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="listings"
-                className="flex items-center space-x-2"
-              >
-                <Car className="h-4 w-4" />
-                <span>Listings</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="users"
-                className="flex items-center space-x-2"
-              >
-                <Users className="h-4 w-4" />
-                <span>Users</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="makes"
-                className="flex items-center space-x-2"
-              >
-                <Car className="h-4 w-4" />
-                <span>Car Makes</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="metadata"
-                className="flex items-center space-x-2"
-              >
-                <Database className="h-4 w-4" />
-                <span>Metadata</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="analytics"
-                className="flex items-center space-x-2"
-              >
-                <TrendingUp className="h-4 w-4" />
-                <span>Analytics</span>
-              </TabsTrigger>
-              <TabsTrigger value="logs" className="flex items-center space-x-2">
-                <Database className="h-4 w-4" />
-                <span>Logs</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="settings"
-                className="flex items-center space-x-2"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </TabsTrigger>
+              <PermissionGate permission="admin:dashboard">
+                <TabsTrigger
+                  value="overview"
+                  className="flex items-center space-x-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Overview</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:listings">
+                <TabsTrigger
+                  value="listings"
+                  className="flex items-center space-x-2"
+                >
+                  <Car className="h-4 w-4" />
+                  <span>Listings</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:users">
+                <TabsTrigger
+                  value="users"
+                  className="flex items-center space-x-2"
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Users</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:manage">
+                <TabsTrigger
+                  value="makes"
+                  className="flex items-center space-x-2"
+                >
+                  <Car className="h-4 w-4" />
+                  <span>Car Makes</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:manage">
+                <TabsTrigger
+                  value="metadata"
+                  className="flex items-center space-x-2"
+                >
+                  <Database className="h-4 w-4" />
+                  <span>Metadata</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:dashboard">
+                <TabsTrigger
+                  value="analytics"
+                  className="flex items-center space-x-2"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  <span>Analytics</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:logs">
+                <TabsTrigger value="logs" className="flex items-center space-x-2">
+                  <Database className="h-4 w-4" />
+                  <span>Logs</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:manage">
+                <TabsTrigger
+                  value="settings"
+                  className="flex items-center space-x-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </TabsTrigger>
+              </PermissionGate>
             </TabsList>
 
             {/* Overview Tab */}
@@ -1196,69 +1231,77 @@ export function EnhancedAdminDashboard() {
                                     {listing.status?.toLowerCase() ===
                                       "pending" && (
                                       <>
+                                        <PermissionGate permission="listing:manage">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              showConfirmation(
+                                                "approve",
+                                                listing.id,
+                                                "Approve Listing",
+                                                `Are you sure you want to approve "${listing.title}"?`
+                                              )
+                                            }
+                                            title="Approve this listing"
+                                          >
+                                            <CheckCircle className="h-4 w-4 text-green-600" />
+                                          </Button>
+                                        </PermissionGate>
+                                        <PermissionGate permission="listing:manage">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              setSelectedListing(listing);
+                                              setActionReason("");
+                                            }}
+                                            title="Reject this listing"
+                                          >
+                                            <XCircle className="h-4 w-4 text-red-600" />
+                                          </Button>
+                                        </PermissionGate>
+                                      </>
+                                    )}
+                                    {listing.status?.toLowerCase() ===
+                                      "approved" && (
+                                      <PermissionGate permission="listing:manage">
                                         <Button
                                           size="sm"
                                           variant="outline"
                                           onClick={() =>
                                             showConfirmation(
-                                              "approve",
+                                              "deactivate",
                                               listing.id,
-                                              "Approve Listing",
-                                              `Are you sure you want to approve "${listing.title}"?`
+                                              "Deactivate Listing",
+                                              `Are you sure you want to deactivate "${listing.title}"? It will no longer be visible to users.`
                                             )
                                           }
-                                          title="Approve this listing"
+                                          title="Deactivate this listing"
                                         >
-                                          <CheckCircle className="h-4 w-4 text-green-600" />
+                                          <Ban className="h-4 w-4 text-red-600" />
                                         </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            setSelectedListing(listing);
-                                            setActionReason("");
-                                          }}
-                                          title="Reject this listing"
-                                        >
-                                          <XCircle className="h-4 w-4 text-red-600" />
-                                        </Button>
-                                      </>
-                                    )}
-                                    {listing.status?.toLowerCase() ===
-                                      "approved" && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
-                                          showConfirmation(
-                                            "deactivate",
-                                            listing.id,
-                                            "Deactivate Listing",
-                                            `Are you sure you want to deactivate "${listing.title}"? It will no longer be visible to users.`
-                                          )
-                                        }
-                                        title="Deactivate this listing"
-                                      >
-                                        <Ban className="h-4 w-4 text-red-600" />
-                                      </Button>
+                                      </PermissionGate>
                                     )}
                                     {listing.status?.toLowerCase() ===
                                       "inactive" && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
-                                          showConfirmation(
-                                            "reactivate",
-                                            listing.id,
-                                            "Reactivate Listing",
-                                            `Are you sure you want to reactivate "${listing.title}"?`
-                                          )
-                                        }
-                                        title="Reactivate this listing"
-                                      >
-                                        <CheckCircle className="h-4 w-4 text-blue-600" />
-                                      </Button>
+                                      <PermissionGate permission="listing:manage">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            showConfirmation(
+                                              "reactivate",
+                                              listing.id,
+                                              "Reactivate Listing",
+                                              `Are you sure you want to reactivate "${listing.title}"?`
+                                            )
+                                          }
+                                          title="Reactivate this listing"
+                                        >
+                                          <CheckCircle className="h-4 w-4 text-blue-600" />
+                                        </Button>
+                                      </PermissionGate>
                                     )}
                                     {listing.status?.toLowerCase() ===
                                       "sold" && (
@@ -1268,27 +1311,29 @@ export function EnhancedAdminDashboard() {
                                         </span>
                                       </div>
                                     )}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() =>
-                                        showConfirmation(
-                                          "featured",
-                                          listing.id,
-                                          "Toggle Featured Status",
-                                          `Are you sure you want to ${listing.isFeatured ? "remove from" : "add to"} featured listings?`
-                                        )
-                                      }
+                                    <PermissionGate permission="listing:manage">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          showConfirmation(
+                                            "featured",
+                                            listing.id,
+                                            "Toggle Featured Status",
+                                            `Are you sure you want to ${listing.isFeatured ? "remove from" : "add to"} featured listings?`
+                                          )
+                                        }
                                       title={
                                         listing.isFeatured
                                           ? "Remove from featured"
                                           : "Add to featured"
-                                      }
-                                    >
-                                      <Star
-                                        className={`h-4 w-4 ${listing.isFeatured ? "text-yellow-500" : "text-gray-400"}`}
-                                      />
-                                    </Button>
+                                        }
+                                      >
+                                        <Star
+                                          className={`h-4 w-4 ${listing.isFeatured ? "text-yellow-500" : "text-gray-400"}`}
+                                        />
+                                      </Button>
+                                    </PermissionGate>
                                   </div>
                                 </td>
                               </tr>
@@ -1393,30 +1438,26 @@ export function EnhancedAdminDashboard() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="space-y-1">
-                                    {/* Legacy Role */}
-                                    <span
-                                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}
-                                    >
-                                      {user.role}
-                                    </span>
+                                  <div className="flex flex-wrap gap-1">
                                     {/* RBAC Roles */}
-                                    {allUserRoles[user.id] && allUserRoles[user.id].length > 0 && (
-                                      <div className="flex flex-wrap gap-1">
-                                        {allUserRoles[user.id].map((userRole, index) => {
-                                          // Use userRole.role.id if available, otherwise fallback to userRole.roleId
-                                          const roleId = userRole.role?.id || userRole.roleId;
-                                          return (
-                                            <span
-                                              key={index}
-                                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
-                                              title={`Assigned: ${new Date(userRole.assignedAt || userRole.createdAt).toLocaleDateString()}${userRole.expiresAt ? `, Expires: ${new Date(userRole.expiresAt).toLocaleDateString()}` : ''}`}
-                                            >
-                                              {getRoleName(roleId)}
-                                            </span>
-                                          );
-                                        })}
-                                      </div>
+                                    {allUserRoles[user.id] && allUserRoles[user.id].length > 0 ? (
+                                      allUserRoles[user.id].map((userRole, index) => {
+                                        // API returns Role objects directly, not UserRole objects
+                                        // So userRole is already a Role object with id and name properties
+                                        const roleId = userRole.id || userRole.role?.id || userRole.roleId;
+                                        const roleName = userRole.name || getRoleName(roleId);
+                                        return (
+                                          <span
+                                            key={index}
+                                            className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                                            title={userRole.assignedAt || userRole.createdAt ? `Assigned: ${new Date(userRole.assignedAt || userRole.createdAt).toLocaleDateString()}${userRole.expiresAt ? `, Expires: ${new Date(userRole.expiresAt).toLocaleDateString()}` : ''}` : roleName}
+                                          >
+                                            {roleName}
+                                          </span>
+                                        );
+                                      })
+                                    ) : (
+                                      <span className="text-sm text-gray-400 italic">No roles assigned</span>
                                     )}
                                   </div>
                                 </td>
@@ -1438,41 +1479,44 @@ export function EnhancedAdminDashboard() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                   <div className="flex space-x-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setSelectedUser(user)}
-                                      title="View user details"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                    {user.isActive && user.role !== "admin" ? (
+                                    <PermissionGate permission="user:read">
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => {
-                                          setSelectedUser(user);
-                                          setActionReason("");
-                                        }}
-                                        title="Deactivate user account"
+                                        onClick={() => setSelectedUser(user)}
+                                        title="View user details"
                                       >
-                                        <UserX className="h-4 w-4 text-red-600" />
+                                        <Eye className="h-4 w-4" />
                                       </Button>
-                                    ) : user.isActive &&
-                                      user.role === "admin" ? (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled
-                                        title="Cannot deactivate admin accounts"
-                                      >
-                                        <UserX className="h-4 w-4 text-gray-400" />
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
+                                    </PermissionGate>
+                                    <PermissionGate permission="user:manage">
+                                      {user.isActive && user.role !== "admin" ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setSelectedUser(user);
+                                            setActionReason("");
+                                          }}
+                                          title="Deactivate user account"
+                                        >
+                                          <UserX className="h-4 w-4 text-red-600" />
+                                        </Button>
+                                      ) : user.isActive &&
+                                        user.role === "admin" ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          disabled
+                                          title="Cannot deactivate admin accounts"
+                                        >
+                                          <UserX className="h-4 w-4 text-gray-400" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
                                           showConfirmation(
                                             "activate",
                                             user.id,
@@ -1485,36 +1529,41 @@ export function EnhancedAdminDashboard() {
                                         <UserCheck className="h-4 w-4 text-green-600" />
                                       </Button>
                                     )}
-                                    {user.role === "user" && (
+                                    </PermissionGate>
+                                    <PermissionGate permission="user:manage">
+                                      {user.role === "user" && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            showConfirmation(
+                                              "makeAdmin",
+                                              user.id,
+                                              "Promote to Admin",
+                                              `Are you sure you want to promote ${user.firstName} ${user.lastName} to admin? This action cannot be undone.`
+                                            )
+                                          }
+                                          title="Promote user to admin"
+                                        >
+                                          <Shield className="h-4 w-4 text-purple-600" />
+                                        </Button>
+                                      )}
+                                    </PermissionGate>
+                                    {/* RBAC Role Management */}
+                                    <PermissionGate permission="user:manage">
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() =>
-                                          showConfirmation(
-                                            "makeAdmin",
-                                            user.id,
-                                            "Promote to Admin",
-                                            `Are you sure you want to promote ${user.firstName} ${user.lastName} to admin? This action cannot be undone.`
-                                          )
-                                        }
-                                        title="Promote user to admin"
+                                        onClick={() => {
+                                          setSelectedUser(user);
+                                          fetchUserRoles(user.id);
+                                          setShowRoleAssignment(true);
+                                        }}
+                                        title="Manage user roles"
                                       >
-                                        <Shield className="h-4 w-4 text-purple-600" />
+                                        <UserCheck className="h-4 w-4 text-blue-600" />
                                       </Button>
-                                    )}
-                                    {/* RBAC Role Management */}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setSelectedUser(user);
-                                        fetchUserRoles(user.id);
-                                        setShowRoleAssignment(true);
-                                      }}
-                                      title="Manage user roles"
-                                    >
-                                      <UserCheck className="h-4 w-4 text-blue-600" />
-                                    </Button>
+                                    </PermissionGate>
                                     {/* Removed admin-to-user conversion for security */}
                                   </div>
                                 </td>
@@ -2798,23 +2847,72 @@ export function EnhancedAdminDashboard() {
                     </div>
                   )}
 
-                  {selectedUser.role === "user" && (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        showConfirmation(
-                          "makeAdmin",
-                          selectedUser.id,
-                          "Promote to Admin",
-                          `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
-                        )
-                      }
-                      className="flex items-center space-x-2"
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span>Promote to Admin</span>
-                    </Button>
-                  )}
+                  {(() => {
+                    // Check if user already has admin role using RBAC
+                    const userRoles = allUserRoles[selectedUser.id] || [];
+                    const hasAdminRole = userRoles.some(
+                      (ur: any) => ur.role?.name === 'admin' || ur.name === 'admin'
+                    );
+                    
+                    // Only show button if user doesn't have admin role
+                    if (!hasAdminRole) {
+                      const adminRole = roles.find((r: any) => r.name === 'admin');
+                      
+                      return (
+                        <PermissionGate permission="user:manage">
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              if (!adminRole) {
+                                toast.error('Admin role not found');
+                                return;
+                              }
+                              
+                              if (
+                                window.confirm(
+                                  `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
+                                )
+                              ) {
+                                try {
+                                  // Assign admin role using RBAC API
+                                  await apiClient.post('/rbac/roles/assign', {
+                                    userId: selectedUser.id,
+                                    roleId: adminRole.id,
+                                  });
+                                  
+                                  toast.success('User promoted to admin successfully!');
+                                  
+                                  // Refresh user roles
+                                  await fetchUserRoles(selectedUser.id);
+                                  const updatedUserRoles = await apiClient.get(
+                                    `/rbac/roles/user/${selectedUser.id}`
+                                  ) as any[];
+                                  setAllUserRoles((prev) => ({
+                                    ...prev,
+                                    [selectedUser.id]: updatedUserRoles || [],
+                                  }));
+                                  
+                                  // Refresh user list
+                                  await loadUsers();
+                                } catch (error: any) {
+                                  console.error('Failed to promote user:', error);
+                                  toast.error(
+                                    error.response?.data?.message ||
+                                      'Failed to promote user to admin'
+                                  );
+                                }
+                              }
+                            }}
+                            className="flex items-center space-x-2"
+                          >
+                            <Shield className="h-4 w-4" />
+                            <span>Promote to Admin</span>
+                          </Button>
+                        </PermissionGate>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             </div>

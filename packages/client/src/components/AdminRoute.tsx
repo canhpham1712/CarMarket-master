@@ -1,20 +1,21 @@
-import { Navigate } from "react-router-dom";
-import { useAuthStore } from "../store/auth";
+import { ProtectedRoute } from "./ProtectedRoute";
 
 interface AdminRouteProps {
   children: React.ReactNode;
 }
 
+/**
+ * AdminRoute component - requires admin or super_admin role
+ * Uses ProtectedRoute with permission checks for better security
+ */
 export function AdminRoute({ children }: AdminRouteProps) {
-  const { isAuthenticated, user } = useAuthStore();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (user?.role !== "admin") {
-    return <Navigate to="/" replace />;
-  }
-
-  return <>{children}</>;
+  return (
+    <ProtectedRoute
+      requireAnyRole={["admin", "super_admin"]}
+      requireAnyPermission={["admin:dashboard"]}
+      fallbackPath="/"
+    >
+      {children}
+    </ProtectedRoute>
+  );
 }

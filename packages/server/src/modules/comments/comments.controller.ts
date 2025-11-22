@@ -22,10 +22,10 @@ import { AddReactionDto } from './dto/add-reaction.dto';
 import { ReportCommentDto } from './dto/report-comment.dto';
 import { ReviewReportDto, ReportedCommentsQueryDto } from './dto/admin.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../common/decorators/permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { User, LegacyUserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 
 @ApiTags('Comments')
 @Controller('comments')
@@ -225,8 +225,8 @@ export class CommentsController {
 
   // Admin routes
   @Get('admin/reports')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('admin:listings')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get reported comments (admin only)' })
   @ApiResponse({ status: 200, description: 'Reported comments retrieved successfully' })
@@ -237,8 +237,8 @@ export class CommentsController {
   }
 
   @Put('admin/reports/:reportId/review')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('admin:listings')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Review a comment report (admin only)' })
   @ApiResponse({ status: 200, description: 'Report reviewed successfully' })

@@ -7,10 +7,12 @@ import type {
   RegisterCredentials,
 } from "../types";
 import { apiClient } from "../lib/api";
+import { getPermissionsFromToken } from "../utils/jwt-utils";
 
 interface AuthState {
   user: User | null;
   accessToken: string | null;
+  permissions: string[]; // RBAC permissions from JWT
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -30,6 +32,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     (set, get) => ({
       user: null,
       accessToken: null,
+      permissions: [],
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -43,9 +46,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             credentials
           );
 
+          // Extract permissions from JWT token
+          const permissions = getPermissionsFromToken(response.accessToken);
+
           set({
             user: response.user,
             accessToken: response.accessToken,
+            permissions,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -70,9 +77,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             credentials
           );
 
+          // Extract permissions from JWT token
+          const permissions = getPermissionsFromToken(response.accessToken);
+
           set({
             user: response.user,
             accessToken: response.accessToken,
+            permissions,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -92,6 +103,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set({
           user: null,
           accessToken: null,
+          permissions: [],
           isAuthenticated: false,
           error: null,
         });
@@ -123,9 +135,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           try {
             // Validate token by calling the /me endpoint
             const response = await apiClient.get<User>("/auth/me");
+            // Extract permissions from stored token
+            const permissions = getPermissionsFromToken(storedToken);
             set({
               user: response,
               accessToken: storedToken,
+              permissions,
               isAuthenticated: true,
               isLoading: false,
             });
@@ -144,8 +159,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           try {
             // Validate token by calling the /me endpoint
             const response = await apiClient.get<User>("/auth/me");
+            // Extract permissions from token
+            const permissions = getPermissionsFromToken(accessToken);
             set({
               user: response,
+              permissions,
               isAuthenticated: true,
               isLoading: false,
             });
@@ -170,6 +188,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
+        permissions: state.permissions,
         isAuthenticated: state.isAuthenticated,
       }),
     }

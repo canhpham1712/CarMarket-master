@@ -10,6 +10,7 @@ import { User } from '../../entities/user.entity';
 import { ListingPendingChanges } from '../../entities/listing-pending-changes.entity';
 import { Transaction } from '../../entities/transaction.entity';
 import { LogsModule } from '../logs/logs.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { LogsModule } from '../logs/logs.module';
       Transaction,
     ]),
     LogsModule,
+    RbacModule, // Import RbacModule to use PermissionGuard and ResourceGuard
   ],
   controllers: [ListingsController],
   providers: [ListingsService],

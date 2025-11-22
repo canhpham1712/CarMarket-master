@@ -53,6 +53,7 @@ export class RbacSeed {
       { name: 'admin:dashboard', description: 'Access admin dashboard', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
       { name: 'admin:users', description: 'Manage users in admin', action: PermissionAction.MANAGE, resource: PermissionResource.ADMIN },
       { name: 'admin:listings', description: 'Manage listings in admin', action: PermissionAction.MANAGE, resource: PermissionResource.ADMIN },
+      { name: 'admin:metadata', description: 'Manage metadata in admin', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
       { name: 'admin:logs', description: 'View system logs', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
 
       // Chat permissions
@@ -105,7 +106,8 @@ export class RbacSeed {
           p.name.startsWith('user:') || 
           p.name.startsWith('listing:') || 
           p.name.startsWith('admin:') ||
-          p.name.startsWith('system:logs')
+          p.name.startsWith('system:logs') ||
+          p.name === 'system:manage' // Add system:manage for metadata management
         ),
       },
       {

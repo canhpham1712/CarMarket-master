@@ -111,15 +111,24 @@ export function HomePage() {
     },
   ];
 
-  // Show welcome message for OAuth users
+  // Show welcome message for OAuth users (only once)
   useEffect(() => {
     if (user && user.provider && user.provider !== "local") {
       // Check if this is a fresh OAuth login by checking if we just navigated from callback
       const fromCallback = location.state?.fromCallback;
       if (fromCallback) {
-        toast.success(
-          `🎉 Welcome ${user.firstName}! You're successfully logged in with ${user.provider}.`
-        );
+        // Use a ref to prevent duplicate toasts
+        const hasShownToast = sessionStorage.getItem('oauth_welcome_shown');
+        if (!hasShownToast) {
+          toast.success(
+            `🎉 Welcome ${user.firstName}! You're successfully logged in with ${user.provider}.`
+          );
+          sessionStorage.setItem('oauth_welcome_shown', 'true');
+          // Clear after 5 seconds to allow showing again if needed
+          setTimeout(() => {
+            sessionStorage.removeItem('oauth_welcome_shown');
+          }, 5000);
+        }
       }
     }
   }, [user, location.state]);

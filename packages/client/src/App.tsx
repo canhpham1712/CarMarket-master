@@ -76,7 +76,7 @@ function App() {
                   <Route
                     path="/sell-car"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requirePermission="listing:create">
                         <SellCarPage />
                       </ProtectedRoute>
                     }
@@ -84,7 +84,7 @@ function App() {
                   <Route
                     path="/edit-listing/:id"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requirePermission="listing:update">
                         <EditListingPage />
                       </ProtectedRoute>
                     }
@@ -149,6 +149,7 @@ function App() {
                     background: "#363636",
                     color: "#fff",
                   },
+                  closeButton: true,
                 }}
               />
             </div>

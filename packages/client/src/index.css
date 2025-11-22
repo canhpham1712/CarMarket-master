@@ -35,3 +35,32 @@
     transform: translateY(-10px);
   }
 }
+
+/* Toast close button styling */
+button[data-hot-toast-close] {
+  color: #fff !important;
+  opacity: 0.8 !important;
+  transition: opacity 0.2s;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+  margin-left: 8px !important;
+}
+
+button[data-hot-toast-close]:hover {
+  opacity: 1 !important;
+}
+
+/* Alternative selector for close button */
+[data-hot-toast] button[aria-label="Close"],
+[data-hot-toast] button[aria-label="close"] {
+  color: #fff !important;
+  opacity: 0.8 !important;
+  transition: opacity 0.2s;
+}
+
+[data-hot-toast] button[aria-label="Close"]:hover,
+[data-hot-toast] button[aria-label="close"]:hover {
+  opacity: 1 !important;
+}
