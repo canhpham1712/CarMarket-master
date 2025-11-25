@@ -16,7 +16,6 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card, CardContent } from "../components/ui/Card";
 import { EnhancedSelect } from "../components/ui/EnhancedSelect";
-import { DualRangeSlider } from "../components/ui/DualRangeSlider";
 import { CarCard } from "../components/CarCard";
 import { useAuthStore } from "../store/auth";
 import type { ListingDetail, SearchFilters } from "../types";
@@ -30,14 +29,12 @@ export function HomePage() {
   const location = useLocation();
   const [listings, setListings] = useState<ListingDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(""); // Temporary search query
-  const [appliedSearchQuery, setAppliedSearchQuery] = useState(""); // Applied search query
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<SearchFilters>({
+  const [searchQuery, setSearchQuery] = useState(""); // Search query (auto-applied)
+  const [appliedFilters, setAppliedFilters] = useState<SearchFilters>({
     priceMin: 0,
     priceMax: 100000000,
-  }); // Temporary filters (being edited)
-  const [appliedFilters, setAppliedFilters] = useState<SearchFilters>({}); // Applied filters
+  }); // Applied filters (single source of truth)
+  const [showFilters, setShowFilters] = useState(false);
   const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
   const [selectedMakeId, setSelectedMakeId] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<any[]>([]);
@@ -55,10 +52,6 @@ export function HomePage() {
     null
   );
 
-  // Store pending match count (from current filters before applying)
-  const [pendingMatchCount, setPendingMatchCount] = useState<number | null>(
-    null
-  );
 
   const sortOptions = [
     {
@@ -219,17 +212,34 @@ export function HomePage() {
 
   // (debug logs removed)
 
-  // Load initial listings on mount or when pagination changes
+  // Auto-apply filters with debounce (for search query and quick filters)
   useEffect(() => {
-    // Only fetch if filters have been applied (not on initial mount with empty filters)
-    const shouldFetch = hasActiveFilters();
-
-    if (shouldFetch) {
-      // Build current filters from applied filters
+    const timeoutId = setTimeout(() => {
       const currentFilters: SearchFilters = {
         ...appliedFilters,
-        ...(appliedSearchQuery.trim() && { query: appliedSearchQuery }),
+        ...(searchQuery.trim() && { query: searchQuery }),
       };
+      
+      const hasFilters = hasActiveFilters(currentFilters);
+      
+      if (hasFilters) {
+        setPagination((prev) => ({ ...prev, page: 1 }));
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, appliedFilters.make, appliedFilters.model]);
+
+  // Load listings when filters or pagination changes
+  useEffect(() => {
+    const currentFilters: SearchFilters = {
+      ...appliedFilters,
+      ...(searchQuery.trim() && { query: searchQuery }),
+    };
+    
+    const shouldFetch = hasActiveFilters(currentFilters);
+
+    if (shouldFetch) {
       fetchListings(currentFilters);
     } else {
       // Load initial listings when no filters are applied
@@ -272,7 +282,6 @@ export function HomePage() {
 
     // Refresh favorite states when user comes back to the page
     const handleFocus = () => {
-      // Force re-render of CarCard components to refresh favorite states
       setListings((prev) => [...prev]);
     };
 
@@ -282,11 +291,11 @@ export function HomePage() {
     pagination.page,
     pagination.limit,
     appliedFilters,
-    appliedSearchQuery,
+    searchQuery,
     fetchListings,
   ]);
 
-  // Load models when make is selected - unified logic for both filter panels
+  // Load models when make is selected and auto-apply make filter
   useEffect(() => {
     const loadModels = async () => {
       if (selectedMakeId && metadata?.makes) {
@@ -294,10 +303,14 @@ export function HomePage() {
           (make) => make.id === selectedMakeId
         );
         if (selectedMake) {
-          setFilters((prev) => ({
+          // Auto-apply make filter
+          setAppliedFilters((prev) => ({
             ...prev,
             make: selectedMake.name,
+            // Clear model when make changes
+            model: "",
           }));
+          setPagination((prev) => ({ ...prev, page: 1 }));
 
           try {
             // Fetch models for the selected make
@@ -319,116 +332,60 @@ export function HomePage() {
       } else {
         setAvailableModels([]);
         // Clear make and model when no make is selected
-        setFilters((prev) => ({
-          ...prev,
-          make: "",
-          model: "",
-        }));
+        setAppliedFilters((prev) => {
+          const { make, model, ...rest } = prev;
+          return rest;
+        });
       }
     };
 
     loadModels();
   }, [selectedMakeId, metadata]);
 
-  // Fetch count when filters change (debounced)
-  useEffect(() => {
-    const fetchCount = async () => {
-      // Build current filters from temporary filters
-      const currentFilters: SearchFilters = {
-        ...filters,
-        ...(searchQuery.trim() && { query: searchQuery }),
-      };
-
-      // Check if there are any active filters
-      const hasFilters =
-        currentFilters.query ||
-        currentFilters.make ||
-        currentFilters.model ||
-        currentFilters.yearMin ||
-        currentFilters.yearMax ||
-        (currentFilters.priceMin && currentFilters.priceMin > 0) ||
-        (currentFilters.priceMax && currentFilters.priceMax < 100000000) ||
-        currentFilters.mileageMax ||
-        currentFilters.fuelType ||
-        currentFilters.transmission ||
-        currentFilters.bodyType ||
-        currentFilters.condition ||
-        currentFilters.location;
-
-      if (!hasFilters) {
-        // No filters, use totalCarsAvailable
-        setPendingMatchCount(null);
-        return;
-      }
-
-      try {
-        // Fetch with limit=1 to get total count efficiently
-        const response = await ListingService.searchListings({
-          ...currentFilters,
-          page: 1,
-          limit: 1,
-        });
-        setPendingMatchCount(response.pagination?.total || 0);
-      } catch (error) {
-        console.error("Failed to fetch count:", error);
-        setPendingMatchCount(null);
-      }
-    };
-
-    // Debounce: wait 500ms after user stops changing filters
-    const timeoutId = setTimeout(() => {
-      fetchCount();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [filters, searchQuery]);
-
-  const handleSearch = () => {
-    // Apply temporary filters and search query
-    setAppliedFilters({
-      ...filters,
-    });
-    setAppliedSearchQuery(searchQuery.trim());
-    // Clear pending count since we're applying filters now
-    setPendingMatchCount(null);
-
-    // Reset to first page when applying new filters
-    setPagination((prev) => ({
-      ...prev,
-      page: 1,
-    }));
-
-    // The useEffect will trigger fetchListings with updated appliedFilters
-  };
-
-  // Helper function to check if there are active filters
-  const hasActiveFilters = () => {
+  // Helper function to check if there are active filters (accepts filters parameter)
+  const hasActiveFilters = (filtersToCheck?: SearchFilters) => {
+    const filters = filtersToCheck || appliedFilters;
     return (
-      appliedSearchQuery.trim() ||
-      appliedFilters.make ||
-      appliedFilters.model ||
-      appliedFilters.yearMin ||
-      appliedFilters.yearMax ||
-      appliedFilters.priceMin ||
-      appliedFilters.priceMax ||
-      appliedFilters.mileageMax ||
-      appliedFilters.fuelType ||
-      appliedFilters.transmission ||
-      appliedFilters.bodyType ||
-      appliedFilters.condition ||
-      appliedFilters.location
+      searchQuery.trim() ||
+      filters.make ||
+      filters.model ||
+      filters.yearMin ||
+      filters.yearMax ||
+      (filters.priceMin && filters.priceMin > 0) ||
+      (filters.priceMax && filters.priceMax < 100000000) ||
+      filters.mileageMax ||
+      filters.fuelType ||
+      filters.transmission ||
+      filters.bodyType ||
+      filters.condition ||
+      filters.location
     );
   };
 
+  // Remove a specific filter
+  const removeFilter = (filterKey: keyof SearchFilters) => {
+    setAppliedFilters((prev) => {
+      const { [filterKey]: removed, ...rest } = prev;
+      return rest;
+    });
+    if (filterKey === 'make') {
+      setSelectedMakeId("");
+      setAvailableModels([]);
+    }
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Remove search query
+  const removeSearchQuery = () => {
+    setSearchQuery("");
+  };
+
   const clearFilters = () => {
-    setFilters({
+    setAppliedFilters({
       priceMin: 0,
       priceMax: 100000000,
     });
-    setAppliedFilters({});
     setSearchQuery("");
-    setAppliedSearchQuery("");
-    setPendingMatchCount(null);
     setShowFilters(false);
     setSelectedMakeId("");
     setAvailableModels([]);
@@ -478,13 +435,8 @@ export function HomePage() {
     return currentSort?.value || "newest";
   };
 
-  // Handle style selection (body type or fuel type)
+  // Handle style selection (body type or fuel type) - auto-apply
   const handleStyleSelect = (type: "bodyType" | "fuelType", value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      [type]: value,
-    }));
-    // Apply filters immediately
     setAppliedFilters((prev) => ({
       ...prev,
       [type]: value,
@@ -503,22 +455,49 @@ export function HomePage() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden text-white py-20 md:py-24">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: 'url(https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1920&q=80)'
+          }}
+        >
+          {/* Subtle dark overlay for text readability */}
+          <div className="absolute inset-0 bg-black/40"></div>
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
           <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+            {/* Main Heading */}
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 hero-fade-in-up">
               Find Your Perfect Car
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-blue-100">
+            
+            {/* Subtitle */}
+            <p className="text-xl md:text-2xl mb-8 text-blue-100 hero-fade-in-up" style={{ animationDelay: '0.2s', opacity: 0 }}>
               Browse thousands of quality used cars from trusted sellers
             </p>
+            
+            {/* Value Proposition Tags */}
+            <div className="flex flex-wrap justify-center gap-3 mb-8 md:mb-12 hero-fade-in-up" style={{ animationDelay: '0.4s', opacity: 0 }}>
+              <span className="px-4 py-2 bg-white/10 rounded-full text-sm md:text-base border border-white/20">
+                ✓ Verified Sellers
+              </span>
+              <span className="px-4 py-2 bg-white/10 rounded-full text-sm md:text-base border border-white/20">
+                ✓ Best Prices
+              </span>
+              <span className="px-4 py-2 bg-white/10 rounded-full text-sm md:text-base border border-white/20">
+                ✓ Easy Financing
+              </span>
+            </div>
 
-            {/* Search Bar with Simplified Filters */}
-            <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-lg p-8 text-black">
+            {/* Search Bar with Quick Filters */}
+            <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-lg p-6 md:p-8 text-black hero-fade-in-up" style={{ animationDelay: '0.6s', opacity: 0 }}>
               {/* Main Search Bar */}
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 z-10" />
                   <Input
                     type="text"
                     placeholder="Search by make, model, or keyword..."
@@ -529,161 +508,265 @@ export function HomePage() {
                 </div>
               </div>
 
-              {/* Simplified Filter Section - Only 4 filters as requested */}
-              <div className="space-y-4">
-                {/* Row 1: Make and Model */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Make Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Make
-                    </label>
-                    <EnhancedSelect
-                      options={
-                        metadata?.makes?.map((make) => ({
-                          value: make.id,
-                          label: make.displayName || make.name,
-                        })) || []
-                      }
-                      value={selectedMakeId}
-                      onValueChange={(value) => {
-                        setSelectedMakeId(value as string);
-                      }}
-                      placeholder={
-                        metadataLoading 
-                          ? "Loading makes..." 
-                          : metadata?.makes?.length === 0 
-                            ? "No makes available" 
-                            : "Select a make"
-                      }
-                      searchable={true}
-                      multiple={false}
-                      maxHeight="360px"
-                    />
-                    {metadataError && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {metadataError}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Model Filter - Synchronized with advanced filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Model
-                    </label>
-                    <EnhancedSelect
-                      value={
-                        availableModels.find((m) => m.name === filters.model)
-                          ?.id || ""
-                      }
-                      options={
-                        availableModels && availableModels.length > 0
-                          ? availableModels.map((model) => ({
-                              value: model.id,
-                              label: model.displayName || model.name,
-                            }))
-                          : []
-                      }
-                      onValueChange={(value) => {
-                        const selectedModel = availableModels.find(
-                          (model) => model.id === value
-                        );
-                        if (selectedModel) {
-                          setFilters((prev) => ({
-                            ...prev,
-                            model: selectedModel.name,
-                          }));
-                        }
-                      }}
-                      placeholder={
-                        selectedMakeId && availableModels.length === 0
-                          ? "Loading models..."
-                          : selectedMakeId
-                            ? "Select a model"
-                            : "Select make first"
-                      }
-                      searchable={true}
-                      multiple={false}
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: Max Mileage */}
+              {/* Quick Filters: Make and Model */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Make Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Max Mileage (miles)
+                    Make
                   </label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 50000"
-                    value={filters.mileageMax || ""}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        mileageMax: e.target.value ? Number(e.target.value) : 0,
-                      }))
+                  <EnhancedSelect
+                    options={
+                      metadata?.makes?.map((make) => ({
+                        value: make.id,
+                        label: make.displayName || make.name,
+                      })) || []
                     }
+                    value={selectedMakeId}
+                    onValueChange={(value) => {
+                      setSelectedMakeId(value as string);
+                    }}
+                    placeholder={
+                      metadataLoading 
+                        ? "Loading makes..." 
+                        : metadata?.makes?.length === 0 
+                          ? "No makes available" 
+                          : "Select a make"
+                    }
+                    searchable={true}
+                    multiple={false}
+                    maxHeight="360px"
                   />
+                  {metadataError && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {metadataError}
+                    </p>
+                  )}
                 </div>
 
-                {/* Row 3: Price Range Dual Slider */}
+                {/* Model Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Price Range: ${(filters.priceMin || 0).toLocaleString()} - $
-                    {(filters.priceMax || 100000000).toLocaleString()}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Model
                   </label>
-                  <DualRangeSlider
-                    min={0}
-                    max={100000000}
-                    step={1000}
-                    valueMin={filters.priceMin || 0}
-                    valueMax={filters.priceMax || 100000000}
-                    onChangeMin={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        priceMin: value,
-                      }))
+                  <EnhancedSelect
+                    value={
+                      availableModels.find((m) => m.name === appliedFilters.model)
+                        ?.id || ""
                     }
-                    onChangeMax={(value) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        priceMax: value,
-                      }))
+                    options={
+                      availableModels && availableModels.length > 0
+                        ? availableModels.map((model) => ({
+                            value: model.id,
+                            label: model.displayName || model.name,
+                          }))
+                        : []
                     }
-                    formatValue={(v) => `$${v.toLocaleString()}`}
+                    onValueChange={(value) => {
+                      const selectedModel = availableModels.find(
+                        (model) => model.id === value
+                      );
+                      if (selectedModel) {
+                        setAppliedFilters((prev) => ({
+                          ...prev,
+                          model: selectedModel.name,
+                        }));
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }
+                    }}
+                    placeholder={
+                      selectedMakeId && availableModels.length === 0
+                        ? "Loading models..."
+                        : selectedMakeId
+                          ? "Select a model"
+                          : "Select make first"
+                    }
+                    searchable={true}
+                    multiple={false}
                   />
                 </div>
-              </div>
-              {/* Show Results Button */}
-              <div className="mt-8 text-center">
-                <Button
-                  size="lg"
-                  className="h-12 px-12 bg-blue-600 hover:bg-blue-700 text-white text-lg"
-                  onClick={handleSearch}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    "Loading..."
-                  ) : (
-                    <>
-                      Show{" "}
-                      {pendingMatchCount !== null
-                        ? `${pendingMatchCount.toLocaleString()}`
-                        : hasActiveFilters() && pagination.total > 0
-                          ? `${pagination.total.toLocaleString()}`
-                          : totalCarsAvailable
-                            ? `${totalCarsAvailable.toLocaleString()}+`
-                            : "10,000+"}{" "}
-                      matches
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Sticky Filter Bar with Active Filters */}
+      {(hasActiveFilters() || showFilters) && (
+        <div className="sticky top-16 z-40 bg-white border-b border-gray-200 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              {/* Active Filter Chips - Horizontal scroll on mobile */}
+              <div className="flex-1 w-full sm:w-auto overflow-x-auto sm:overflow-x-visible">
+                <div className="flex flex-wrap sm:flex-wrap items-center gap-2 min-w-0 pb-2 sm:pb-0 -mx-2 px-2 sm:mx-0 sm:px-0">
+                {searchQuery.trim() && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Search: "{searchQuery}"
+                    <button
+                      onClick={removeSearchQuery}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove search"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.make && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Make: {metadata?.makes?.find(m => m.name === appliedFilters.make)?.displayName || appliedFilters.make}
+                    <button
+                      onClick={() => removeFilter('make')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove make filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.model && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Model: {appliedFilters.model}
+                    <button
+                      onClick={() => removeFilter('model')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove model filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.yearMin && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Year: {appliedFilters.yearMin}
+                    {appliedFilters.yearMax && `-${appliedFilters.yearMax}`}
+                    <button
+                      onClick={() => {
+                        removeFilter('yearMin');
+                        removeFilter('yearMax');
+                      }}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove year filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {(appliedFilters.priceMin && appliedFilters.priceMin > 0) || (appliedFilters.priceMax && appliedFilters.priceMax < 100000000) ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Price: ${((appliedFilters.priceMin || 0) / 1000).toFixed(0)}k - ${((appliedFilters.priceMax || 100000000) / 1000).toFixed(0)}k
+                    <button
+                      onClick={() => {
+                        setAppliedFilters((prev) => {
+                          const { priceMin, priceMax, ...rest } = prev;
+                          return { ...rest, priceMin: 0, priceMax: 100000000 };
+                        });
+                      }}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove price filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ) : null}
+                {appliedFilters.mileageMax && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Max Mileage: {appliedFilters.mileageMax.toLocaleString()} mi
+                    <button
+                      onClick={() => removeFilter('mileageMax')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove mileage filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.fuelType && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Fuel: {metadata?.fuelTypes?.find(f => f.value === appliedFilters.fuelType)?.displayValue || appliedFilters.fuelType}
+                    <button
+                      onClick={() => removeFilter('fuelType')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove fuel type filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.bodyType && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Body: {metadata?.bodyTypes?.find(b => b.value === appliedFilters.bodyType)?.displayValue || appliedFilters.bodyType}
+                    <button
+                      onClick={() => removeFilter('bodyType')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove body type filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.transmission && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Transmission: {metadata?.transmissionTypes?.find(t => t.value === appliedFilters.transmission)?.displayValue || appliedFilters.transmission}
+                    <button
+                      onClick={() => removeFilter('transmission')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove transmission filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.condition && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Condition: {metadata?.conditions?.find(c => c.value === appliedFilters.condition)?.displayValue || appliedFilters.condition}
+                    <button
+                      onClick={() => removeFilter('condition')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove condition filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {appliedFilters.location && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
+                    Location: {appliedFilters.location}
+                    <button
+                      onClick={() => removeFilter('location')}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                      aria-label="Remove location filter"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {hasActiveFilters() && (
+                  <button
+                    onClick={clearFilters}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-sm font-medium border border-gray-300 hover:bg-gray-200 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear All
+                  </button>
+                )}
+                </div>
+              </div>
+
+              {/* Filter Actions */}
+              <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end sm:justify-start">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  {showFilters ? 'Hide' : 'More'} Filters
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Featured Cars */}
       <section id="featured-cars-section" className="py-16 bg-white">
@@ -754,14 +837,14 @@ export function HomePage() {
                     />
                   </div>
 
-                  {/* Model - Synchronized with main search */}
+                  {/* Model */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Model
                     </label>
                     <EnhancedSelect
                       value={
-                        availableModels.find((m) => m.name === filters.model)
+                        availableModels.find((m) => m.name === appliedFilters.model)
                           ?.id || ""
                       }
                       options={
@@ -777,10 +860,11 @@ export function HomePage() {
                           (model) => model.id === value
                         );
                         if (selectedModel) {
-                          setFilters((prev) => ({
+                          setAppliedFilters((prev) => ({
                             ...prev,
                             model: selectedModel.name,
                           }));
+                          setPagination((prev) => ({ ...prev, page: 1 }));
                         }
                       }}
                       placeholder={
@@ -804,24 +888,26 @@ export function HomePage() {
                       <Input
                         type="number"
                         placeholder="Min"
-                        value={filters.priceMin || ""}
-                        onChange={(e) =>
-                          setFilters({
-                            ...filters,
+                        value={appliedFilters.priceMin && appliedFilters.priceMin > 0 ? appliedFilters.priceMin : ""}
+                        onChange={(e) => {
+                          setAppliedFilters((prev) => ({
+                            ...prev,
                             priceMin: e.target.value ? Number(e.target.value) : 0,
-                          })
-                        }
+                          }));
+                          setPagination((prev) => ({ ...prev, page: 1 }));
+                        }}
                       />
                       <Input
                         type="number"
                         placeholder="Max"
-                        value={filters.priceMax || ""}
-                        onChange={(e) =>
-                          setFilters({
-                            ...filters,
-                            priceMax: e.target.value ? Number(e.target.value) : 0,
-                          })
-                        }
+                        value={appliedFilters.priceMax && appliedFilters.priceMax < 100000000 ? appliedFilters.priceMax : ""}
+                        onChange={(e) => {
+                          setAppliedFilters((prev) => ({
+                            ...prev,
+                            priceMax: e.target.value ? Number(e.target.value) : 100000000,
+                          }));
+                          setPagination((prev) => ({ ...prev, page: 1 }));
+                        }}
                       />
                     </div>
                   </div>
@@ -843,13 +929,14 @@ export function HomePage() {
                             })
                           ),
                         ]}
-                        value={filters.yearMin ? String(filters.yearMin) : ""}
-                        onValueChange={(value) =>
-                          setFilters({
-                            ...filters,
-                            yearMin: value ? Number(value) : 0,
-                          })
-                        }
+                        value={appliedFilters.yearMin ? String(appliedFilters.yearMin) : ""}
+                        onValueChange={(value) => {
+                          setAppliedFilters((prev) => {
+                            const { yearMin, ...rest } = prev;
+                            return value ? { ...rest, yearMin: Number(value) } : rest;
+                          });
+                          setPagination((prev) => ({ ...prev, page: 1 }));
+                        }}
                         placeholder="From"
                         searchable={true}
                         multiple={false}
@@ -865,13 +952,14 @@ export function HomePage() {
                             })
                           ),
                         ]}
-                        value={filters.yearMax ? String(filters.yearMax) : ""}
-                        onValueChange={(value) =>
-                          setFilters({
-                            ...filters,
-                            yearMax: value ? Number(value) : 0,
-                          })
-                        }
+                        value={appliedFilters.yearMax ? String(appliedFilters.yearMax) : ""}
+                        onValueChange={(value) => {
+                          setAppliedFilters((prev) => {
+                            const { yearMax, ...rest } = prev;
+                            return value ? { ...rest, yearMax: Number(value) } : rest;
+                          });
+                          setPagination((prev) => ({ ...prev, page: 1 }));
+                        }}
                         placeholder="To"
                         searchable={true}
                         multiple={false}
@@ -887,13 +975,14 @@ export function HomePage() {
                     <Input
                       type="number"
                       placeholder="e.g., 50000"
-                      value={filters.mileageMax || ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          mileageMax: e.target.value ? Number(e.target.value) : 0,
-                        })
-                      }
+                      value={appliedFilters.mileageMax || ""}
+                      onChange={(e) => {
+                        setAppliedFilters((prev) => {
+                          const { mileageMax, ...rest } = prev;
+                          return e.target.value ? { ...rest, mileageMax: Number(e.target.value) } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
                     />
                   </div>
 
@@ -910,13 +999,14 @@ export function HomePage() {
                           label: type.displayValue,
                         })) || []),
                       ]}
-                      value={filters.fuelType || ""}
-                      onValueChange={(value) =>
-                        setFilters({
-                          ...filters,
-                          fuelType: (value as string) || "",
-                        })
-                      }
+                      value={appliedFilters.fuelType || ""}
+                      onValueChange={(value) => {
+                        setAppliedFilters((prev) => {
+                          const { fuelType, ...rest } = prev;
+                          return value ? { ...rest, fuelType: value as string } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
                       placeholder="Any Fuel"
                       searchable={true}
                       multiple={false}
@@ -936,13 +1026,14 @@ export function HomePage() {
                           label: type.displayValue,
                         })) || []),
                       ]}
-                      value={filters.bodyType || ""}
-                      onValueChange={(value) =>
-                        setFilters({
-                          ...filters,
-                          bodyType: (value as string) || "",
-                        })
-                      }
+                      value={appliedFilters.bodyType || ""}
+                      onValueChange={(value) => {
+                        setAppliedFilters((prev) => {
+                          const { bodyType, ...rest } = prev;
+                          return value ? { ...rest, bodyType: value as string } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
                       placeholder="Any Body Type"
                       searchable={true}
                       multiple={false}
@@ -962,13 +1053,14 @@ export function HomePage() {
                           label: type.displayValue,
                         })) || []),
                       ]}
-                      value={filters.transmission || ""}
-                      onValueChange={(value) =>
-                        setFilters({
-                          ...filters,
-                          transmission: (value as string) || "",
-                        })
-                      }
+                      value={appliedFilters.transmission || ""}
+                      onValueChange={(value) => {
+                        setAppliedFilters((prev) => {
+                          const { transmission, ...rest } = prev;
+                          return value ? { ...rest, transmission: value as string } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
                       placeholder="Any Transmission"
                       searchable={true}
                       multiple={false}
@@ -988,13 +1080,14 @@ export function HomePage() {
                           label: type.displayValue,
                         })) || []),
                       ]}
-                      value={filters.condition || ""}
-                      onValueChange={(value) =>
-                        setFilters({
-                          ...filters,
-                          condition: (value as string) || "",
-                        })
-                      }
+                      value={appliedFilters.condition || ""}
+                      onValueChange={(value) => {
+                        setAppliedFilters((prev) => {
+                          const { condition, ...rest } = prev;
+                          return value ? { ...rest, condition: value as string } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
                       placeholder="Any Condition"
                       searchable={false}
                       multiple={false}
@@ -1009,36 +1102,22 @@ export function HomePage() {
                     <Input
                       type="text"
                       placeholder="City or State"
-                      value={filters.location || ""}
-                      onChange={(e) =>
-                        setFilters({
-                          ...filters,
-                          location: e.target.value || "",
-                        })
-                      }
+                      value={appliedFilters.location || ""}
+                      onChange={(e) => {
+                        setAppliedFilters((prev) => {
+                          const { location, ...rest } = prev;
+                          return e.target.value ? { ...rest, location: e.target.value } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-between mt-6">
-                  <div className="flex space-x-2">
-                    <Button variant="outline" onClick={clearFilters}>
-                      <X className="h-4 w-4 mr-2" />
-                      Clear All
-                    </Button>
-                  </div>
-                  <Button
-                    onClick={handleSearch}
-                    className="bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    <Search className="h-4 w-4 mr-2" />
-                    Apply Filters (
-                    {Object.keys(filters).filter(
-                      (key) =>
-                        key !== "priceMin" ||
-                        filters[key as keyof SearchFilters] !== 0
-                    ).length + (searchQuery.trim() ? 1 : 0)}{" "}
-                    active)
+                <div className="flex justify-end mt-6">
+                  <Button variant="outline" onClick={clearFilters}>
+                    <X className="h-4 w-4 mr-2" />
+                    Clear All Filters
                   </Button>
                 </div>
               </CardContent>
@@ -1063,11 +1142,14 @@ export function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {listings.map((listing) => (
-                <CarCard
+              {listings.map((listing, index) => (
+                <div
                   key={`${listing.id}-${user?.id || "anonymous"}`}
-                  listing={listing}
-                />
+                  className="car-card-fade-in-up"
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  <CarCard listing={listing} />
+                </div>
               ))}
             </div>
           )}

@@ -64,3 +64,65 @@ button[data-hot-toast-close]:hover {
 [data-hot-toast] button[aria-label="close"]:hover {
   opacity: 1 !important;
 }
+
+/* Hero Section Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.hero-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.hero-fade-in {
+  animation: fadeIn 1s ease-out forwards;
+}
+
+.hero-gradient-animated {
+  background-size: 200% 200%;
+  animation: gradientShift 15s ease infinite;
+}
+
+.hero-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Car Listing Animations */
+.car-card-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+}

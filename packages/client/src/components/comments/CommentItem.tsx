@@ -321,11 +321,6 @@ export function CommentItem({
                 aria-label="Reply"
               >
                 <Reply className="w-4 h-4" />
-                {comment.replyCount > 0 && (
-                  <span className="text-xs text-gray-500 font-medium min-w-[20px]">
-                    {comment.replyCount}
-                  </span>
-                )}
               </button>
             )}
           </div>
@@ -361,7 +356,7 @@ export function CommentItem({
               ) : (
                 <>
                   <ChevronDown className="w-4 h-4" />
-                  <span>View {comment.replyCount} {comment.replyCount === 1 ? 'reply' : 'replies'}</span>
+                  <span>View replies</span>
                 </>
               )}
             </button>
