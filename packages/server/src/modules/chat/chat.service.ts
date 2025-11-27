@@ -70,9 +70,9 @@ export class ChatService {
         MessageType.SYSTEM,
       );
 
-      // Create notification for seller about new inquiry
+      // Create notification for seller about new inquiry (with grouping)
       try {
-        await this.notificationsService.createNotification(
+        await this.notificationsService.groupOrCreateNotification(
           listing.sellerId,
           NotificationType.NEW_INQUIRY,
           'New Inquiry',
@@ -83,6 +83,7 @@ export class ChatService {
             buyerId: buyerId,
             conversationId: conversation.id,
           },
+          60, // Group within 1 hour
         );
       } catch (notificationError) {
         console.error('Error creating new inquiry notification:', notificationError);

@@ -17,7 +17,7 @@ import { NotificationBell } from "./NotificationBell";
 
 export function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
-  const { unreadCount } = useNotifications();
+  const { chatUnreadCount } = useNotifications();
   const { hasPermission, hasRole } = usePermissions();
   const navigate = useNavigate();
   
@@ -122,9 +122,9 @@ export function Header() {
                     >
                       <MessageCircle className="h-4 w-4 mr-3" />
                       Messages
-                      {unreadCount > 0 && (
+                      {chatUnreadCount > 0 && (
                         <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                          {unreadCount}
+                          {chatUnreadCount}
                         </span>
                       )}
                     </Link>

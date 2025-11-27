@@ -75,7 +75,7 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         SellerRating,
       ],
       synchronize: false,
-      migrationsRun: true,
+      migrationsRun: false, // Disabled: Run migrations manually using SQL script
       logging: this.configService.get<string>('NODE_ENV') === 'development' ? ['error'] : false,
       migrations: ['dist/migrations/*{.ts,.js}'],
       migrationsTableName: 'migrations',

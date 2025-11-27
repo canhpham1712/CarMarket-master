@@ -52,7 +52,7 @@ export function NotificationDropdown({
   isOpen,
   onClose,
 }: NotificationDropdownProps) {
-  const { notifications, refreshNotifications, unreadCount } = useNotifications();
+  const { notifications, refreshNotifications, notificationUnreadCount } = useNotifications();
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -92,7 +92,7 @@ export function NotificationDropdown({
   };
 
   const handleMarkAllAsRead = async () => {
-    if (unreadCount === 0) return;
+    if (notificationUnreadCount === 0) return;
 
     setIsMarkingAll(true);
     try {
@@ -126,7 +126,7 @@ export function NotificationDropdown({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
-        {unreadCount > 0 && (
+        {notificationUnreadCount > 0 && (
           <Button
             variant="ghost"
             size="sm"

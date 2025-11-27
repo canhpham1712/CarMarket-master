@@ -3,12 +3,16 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
-import { Optional } from '@nestjs/common';
+import { Optional, Inject, forwardRef, Logger } from '@nestjs/common';
 import { Notification } from '../../entities/notification.entity';
 import { RealtimeMetricsService } from '../monitoring/realtime-metrics.service';
+import { NotificationsService } from './notifications.service';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -28,11 +32,14 @@ export class NotificationsGateway
   @WebSocketServer()
   server!: Server;
 
+  private readonly logger = new Logger(NotificationsGateway.name);
   private userSockets: Map<string, string[]> = new Map();
+  private readonly maxConnectionsPerUser = 5; // Max 5 WebSocket connections per user
 
   constructor(
     private readonly jwtService: JwtService,
     @Optional() private readonly realtimeMetricsService?: RealtimeMetricsService,
+    @Optional() @Inject(forwardRef(() => NotificationsService)) private readonly notificationsService?: NotificationsService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -56,6 +63,23 @@ export class NotificationsGateway
       client.userId = userId;
 
       const userSockets = this.userSockets.get(userId) || [];
+      
+      // Check connection limit
+      if (userSockets.length >= this.maxConnectionsPerUser) {
+        this.logger.warn(
+          `User ${userId} exceeded max connections (${this.maxConnectionsPerUser}), disconnecting oldest`,
+        );
+        // Disconnect oldest connection
+        const oldestSocketId = userSockets[0];
+        if (oldestSocketId) {
+          const oldestSocket = this.server.sockets.sockets.get(oldestSocketId);
+          if (oldestSocket) {
+            oldestSocket.disconnect();
+          }
+          userSockets.shift();
+        }
+      }
+      
       userSockets.push(client.id);
       this.userSockets.set(userId, userSockets);
 
@@ -109,9 +133,54 @@ export class NotificationsGateway
     }
   }
 
-  sendUnreadCountUpdateToUser(userId: string, count: number) {
+  sendNotificationUnreadCountUpdateToUser(userId: string, count: number) {
     if (this.server) {
-      this.server.to(`user:${userId}`).emit('unreadCountUpdate', { count });
+      this.server.to(`user:${userId}`).emit('notificationUnreadCountUpdate', { count });
+    }
+  }
+
+  @SubscribeMessage('ping')
+  handlePing(@ConnectedSocket() client: AuthenticatedSocket) {
+    if (client.userId) {
+      client.emit('pong');
+    }
+  }
+
+  @SubscribeMessage('sync')
+  async handleSync(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { lastSyncTimestamp: number },
+  ) {
+    if (!client.userId || !this.notificationsService) {
+      return;
+    }
+
+    try {
+      const lastSync = new Date(data.lastSyncTimestamp);
+      
+      // Get notifications created after lastSync
+      const result = await this.notificationsService.getUserNotifications(
+        client.userId,
+        1,
+        100,
+        false,
+      );
+
+      const missedNotifications = result.notifications.filter(
+        (notification) => new Date(notification.createdAt) > lastSync,
+      );
+
+      if (missedNotifications.length > 0) {
+        client.emit('missedNotifications', {
+          notifications: missedNotifications,
+        });
+
+        // Update unread count
+        const unreadCount = await this.notificationsService.getUnreadCount(client.userId);
+        this.sendNotificationUnreadCountUpdateToUser(client.userId, unreadCount);
+      }
+    } catch (error) {
+      console.error('Error syncing notifications:', error);
     }
   }
 

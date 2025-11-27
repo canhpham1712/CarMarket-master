@@ -24,6 +24,9 @@ export enum NotificationType {
 @Entity('notifications')
 @Index(['userId', 'isRead'])
 @Index(['userId', 'createdAt'])
+@Index(['userId', 'isRead', 'createdAt'])
+@Index(['userId', 'type'])
+@Index(['groupId'])
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -51,6 +54,9 @@ export class Notification {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata!: Record<string, any> | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  groupId!: string | null;
 
   @CreateDateColumn()
   createdAt!: Date;

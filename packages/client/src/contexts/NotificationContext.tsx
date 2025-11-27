@@ -7,12 +7,14 @@ import toast from "react-hot-toast";
 import type { ChatConversation } from "../services/chat.service";
 
 interface NotificationContextType {
-  unreadCount: number;
+  chatUnreadCount: number;
+  notificationUnreadCount: number;
   conversations: ChatConversation[];
   notifications: Notification[];
   refreshConversations: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
-  clearUnreadCount: () => void;
+  clearChatUnreadCount: () => void;
+  clearNotificationUnreadCount: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -25,7 +27,8 @@ export function NotificationProvider({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, user, isLoading } = useAuthStore();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -36,14 +39,13 @@ export function NotificationProvider({
       const response = await ChatService.getUserConversations();
       setConversations(response.conversations);
 
-      // Get actual unread count from backend (with separate error handling)
+      // Get actual chat unread count from backend (with separate error handling)
       try {
         const unreadResponse = await ChatService.getUnreadCount();
-        setUnreadCount(unreadResponse.unreadCount);
+        setChatUnreadCount(unreadResponse.unreadCount);
       } catch (unreadError) {
-        console.error("Failed to get unread count:", unreadError);
+        console.error("Failed to get chat unread count:", unreadError);
         // Don't crash the app, just keep current unread count
-        // setUnreadCount(0); // Optionally reset to 0
       }
     } catch (error: any) {
       console.error("Failed to refresh conversations:", error);
@@ -69,10 +71,10 @@ export function NotificationProvider({
       const response = await NotificationService.getNotifications(1, 20, false);
       setNotifications(response.notifications);
 
-      // Get unread count from notifications
+      // Get notification unread count from backend
       try {
         const unreadResponse = await NotificationService.getUnreadCount();
-        setUnreadCount(unreadResponse.unreadCount);
+        setNotificationUnreadCount(unreadResponse.unreadCount);
       } catch (unreadError) {
         console.error("Failed to get notification unread count:", unreadError);
       }
@@ -89,8 +91,12 @@ export function NotificationProvider({
     }
   };
 
-  const clearUnreadCount = () => {
-    setUnreadCount(0);
+  const clearChatUnreadCount = () => {
+    setChatUnreadCount(0);
+  };
+
+  const clearNotificationUnreadCount = () => {
+    setNotificationUnreadCount(0);
   };
 
   useEffect(() => {
@@ -144,9 +150,9 @@ export function NotificationProvider({
         (data: { notification: Notification }) => {
           // Add new notification to the list
           setNotifications((prev) => [data.notification, ...prev]);
-          // Increment unread count immediately if notification is unread
+          // Increment notification unread count immediately if notification is unread
           if (!data.notification.isRead) {
-            setUnreadCount((prev) => prev + 1);
+            setNotificationUnreadCount((prev) => prev + 1);
           }
           // Refresh notifications from database to ensure consistency
           refreshNotifications();
@@ -182,10 +188,37 @@ export function NotificationProvider({
         }
       );
 
-      const unsubscribeUnreadCountUpdate = socketService.on(
-        "unreadCountUpdate",
+      const unsubscribeNotificationUnreadCountUpdate = socketService.on(
+        "notificationUnreadCountUpdate",
         (data: { count: number }) => {
-          setUnreadCount(data.count);
+          setNotificationUnreadCount(data.count);
+        }
+      );
+
+      const unsubscribeChatUnreadCountUpdate = socketService.on(
+        "chatUnreadCountUpdate",
+        (data: { count: number }) => {
+          setChatUnreadCount(data.count);
+        }
+      );
+
+      const unsubscribeMissedNotifications = socketService.on(
+        "missedNotifications",
+        (data: { notifications: Notification[] }) => {
+          // Merge missed notifications with existing ones, avoiding duplicates
+          setNotifications((prev) => {
+            const existingIds = new Set(prev.map((n) => n.id));
+            const newNotifications = data.notifications.filter(
+              (n) => !existingIds.has(n.id)
+            );
+            return [...newNotifications, ...prev];
+          });
+          
+          // Update unread count
+          const unreadCount = data.notifications.filter((n) => !n.isRead).length;
+          if (unreadCount > 0) {
+            setNotificationUnreadCount((prev) => prev + unreadCount);
+          }
         }
       );
 
@@ -201,13 +234,16 @@ export function NotificationProvider({
         unsubscribeGlobalNotification();
         unsubscribeNewNotification();
         unsubscribeNotificationUpdate();
-        unsubscribeUnreadCountUpdate();
+        unsubscribeNotificationUnreadCountUpdate();
+        unsubscribeChatUnreadCountUpdate();
+        unsubscribeMissedNotifications();
       };
     }
     
     if (!isLoading) {
       // Only clear state if auth is not loading
-      setUnreadCount(0);
+      setChatUnreadCount(0);
+      setNotificationUnreadCount(0);
       setConversations([]);
       setNotifications([]);
     }
@@ -220,12 +256,14 @@ export function NotificationProvider({
   return (
     <NotificationContext.Provider
       value={{
-        unreadCount,
+        chatUnreadCount,
+        notificationUnreadCount,
         conversations,
         notifications,
         refreshConversations,
         refreshNotifications,
-        clearUnreadCount,
+        clearChatUnreadCount,
+        clearNotificationUnreadCount,
       }}
     >
       {children}

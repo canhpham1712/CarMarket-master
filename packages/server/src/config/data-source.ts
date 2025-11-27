@@ -20,6 +20,9 @@ import { Role } from '../entities/role.entity';
 import { UserRole } from '../entities/user-role.entity';
 import { AuditLog } from '../entities/audit-log.entity';
 import { SellerRating } from '../entities/seller-rating.entity';
+import { Notification } from '../entities/notification.entity';
+import { NotificationPreference } from '../entities/notification-preference.entity';
+import { NotificationDeliveryLog } from '../entities/notification-delivery-log.entity';
 
 // Load environment variables
 config();
@@ -62,6 +65,9 @@ export const AppDataSource = new DataSource({
     UserRole,
     AuditLog,
     SellerRating,
+    Notification,
+    NotificationPreference,
+    NotificationDeliveryLog,
   ],
   migrations: ['src/migrations/*.ts'],
   synchronize: false,

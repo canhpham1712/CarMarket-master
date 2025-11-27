@@ -47,6 +47,14 @@ class SocketService {
   private notificationsSocket: Socket | null = null;
   private listeners: Map<string, Function[]> = new Map();
 
+  // Reconnection state
+  private reconnectAttempts: Map<string, number> = new Map();
+  private maxReconnectAttempts = 10;
+  private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
+  private heartbeatIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private lastSyncTimestamps: Map<string, number> = new Map();
+  private connectionState: Map<string, 'connected' | 'disconnected' | 'connecting' | 'error'> = new Map();
+
   connect() {
     const token = useAuthStore.getState().accessToken;
 
@@ -82,19 +90,19 @@ class SocketService {
 
     // Connect to notifications namespace
     if (!this.notificationsSocket?.connected) {
-      this.notificationsSocket = io("http://localhost:3000/notifications", {
-        query: { token },
-        transports: ["websocket"],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-      });
-
-      this.setupNotificationsEventListeners();
+      this.connectNotificationsSocket(token);
     }
   }
 
   disconnect() {
+    // Clear all reconnect timers
+    this.reconnectTimers.forEach((timer) => clearTimeout(timer));
+    this.reconnectTimers.clear();
+    
+    // Clear all heartbeat intervals
+    this.heartbeatIntervals.forEach((interval) => clearInterval(interval));
+    this.heartbeatIntervals.clear();
+    
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
@@ -111,6 +119,8 @@ class SocketService {
     }
     
     this.listeners.clear();
+    this.reconnectAttempts.clear();
+    this.connectionState.clear();
   }
 
   private setupChatEventListeners() {
@@ -301,13 +311,105 @@ class SocketService {
     return this.commentsSocket?.connected || false;
   }
 
-  private setupNotificationsEventListeners() {
-    if (!this.notificationsSocket) return;
-
-    this.notificationsSocket.on("connect", () => {
+  private connectNotificationsSocket(token: string) {
+    const namespace = 'notifications';
+    this.connectionState.set(namespace, 'connecting');
+    
+    this.notificationsSocket = io("http://localhost:3000/notifications", {
+      query: { token },
+      transports: ["websocket"],
+      reconnection: false, // We handle reconnection manually
     });
 
-    this.notificationsSocket.on("disconnect", () => {
+    this.setupNotificationsEventListeners();
+  }
+
+  private reconnectNotificationsSocket(token: string) {
+    const namespace = 'notifications';
+    const attempts = this.reconnectAttempts.get(namespace) || 0;
+    
+    if (attempts >= this.maxReconnectAttempts) {
+      console.error(`Max reconnection attempts (${this.maxReconnectAttempts}) reached for ${namespace}`);
+      this.connectionState.set(namespace, 'error');
+      return;
+    }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+    const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
+    
+    this.connectionState.set(namespace, 'connecting');
+    this.reconnectAttempts.set(namespace, attempts + 1);
+    
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(namespace);
+      this.connectNotificationsSocket(token);
+    }, delay);
+    
+    this.reconnectTimers.set(namespace, timer);
+  }
+
+  private setupNotificationsEventListeners() {
+    if (!this.notificationsSocket) return;
+    const namespace = 'notifications';
+
+    this.notificationsSocket.on("connect", () => {
+      console.log(`[${namespace}] Connected`);
+      this.connectionState.set(namespace, 'connected');
+      this.reconnectAttempts.set(namespace, 0);
+      
+      // Clear any pending reconnect timer
+      const timer = this.reconnectTimers.get(namespace);
+      if (timer) {
+        clearTimeout(timer);
+        this.reconnectTimers.delete(namespace);
+      }
+      
+      // Setup heartbeat
+      this.setupHeartbeat(namespace);
+      
+      // Sync missed notifications
+      this.syncMissedNotifications(namespace);
+      
+      // Emit connection status
+      this.emit("connectionStatusChanged", { connected: true, namespace });
+    });
+
+    this.notificationsSocket.on("disconnect", (reason: string) => {
+      console.log(`[${namespace}] Disconnected:`, reason);
+      this.connectionState.set(namespace, 'disconnected');
+      
+      // Clear heartbeat
+      const heartbeat = this.heartbeatIntervals.get(namespace);
+      if (heartbeat) {
+        clearInterval(heartbeat);
+        this.heartbeatIntervals.delete(namespace);
+      }
+      
+      // Emit connection status
+      this.emit("connectionStatusChanged", { connected: false, namespace });
+      
+      // Attempt reconnection if not manual disconnect
+      if (reason !== 'io client disconnect') {
+        const token = useAuthStore.getState().accessToken;
+        if (token) {
+          this.reconnectNotificationsSocket(token);
+        }
+      }
+    });
+
+    this.notificationsSocket.on("connect_error", (error: Error) => {
+      console.error(`[${namespace}] Connection error:`, error);
+      this.connectionState.set(namespace, 'error');
+      
+      // Attempt reconnection
+      const token = useAuthStore.getState().accessToken;
+      if (token) {
+        this.reconnectNotificationsSocket(token);
+      }
+    });
+
+    this.notificationsSocket.on("error", (error: Error) => {
+      console.error(`[${namespace}] Socket error:`, error);
     });
 
     this.notificationsSocket.on("newNotification", (data: { notification: any }) => {
@@ -321,9 +423,57 @@ class SocketService {
       this.emit("notificationUpdate", data);
     });
 
-    this.notificationsSocket.on("unreadCountUpdate", (data: { count: number }) => {
-      this.emit("unreadCountUpdate", data);
+    this.notificationsSocket.on("notificationUnreadCountUpdate", (data: { count: number }) => {
+      this.emit("notificationUnreadCountUpdate", data);
     });
+
+    this.notificationsSocket.on("missedNotifications", (data: { notifications: any[] }) => {
+      this.emit("missedNotifications", data);
+    });
+
+    this.notificationsSocket.on("pong", () => {
+      // Heartbeat response received
+    });
+
+    // Handle ping/pong for heartbeat
+    this.notificationsSocket.on("ping", () => {
+      if (this.notificationsSocket?.connected) {
+        this.notificationsSocket.emit("pong");
+      }
+    });
+  }
+
+  private setupHeartbeat(namespace: string) {
+    // Clear existing heartbeat if any
+    const existing = this.heartbeatIntervals.get(namespace);
+    if (existing) {
+      clearInterval(existing);
+    }
+
+    // Send ping every 30 seconds
+    const interval = setInterval(() => {
+      if (this.notificationsSocket?.connected) {
+        this.notificationsSocket.emit("ping");
+      } else {
+        clearInterval(interval);
+        this.heartbeatIntervals.delete(namespace);
+      }
+    }, 30000);
+
+    this.heartbeatIntervals.set(namespace, interval);
+  }
+
+  private syncMissedNotifications(namespace: string) {
+    const lastSync = this.lastSyncTimestamps.get(namespace) || Date.now() - 3600000; // Default to 1 hour ago
+    const now = Date.now();
+    
+    // Emit sync request with lastSyncTimestamp
+    if (this.notificationsSocket?.connected) {
+      this.notificationsSocket.emit("sync", { lastSyncTimestamp: lastSync });
+    }
+    
+    // Update last sync timestamp
+    this.lastSyncTimestamps.set(namespace, now);
   }
 
   isNotificationsConnected(): boolean {

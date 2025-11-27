@@ -23,7 +23,6 @@ export const METRIC_TOOLTIPS: Record<string, string> = {
   'Total Listings': 'All vehicle listings ever created, including active, sold, and rejected ones.',
   'Active Listings': 'Listings that are approved and visible to buyers right now.',
   'Pending Listings': 'Listings waiting for moderator or admin review before they can go live.',
-  'Rejected Listings': 'Listings rejected during review because they did not meet quality or policy requirements.',
   'Sold Listings': 'Listings marked as sold after a successful transaction.',
   'Total Views': 'Cumulative number of detail-page views for every listing.',
   'Total Favorites': 'Total times buyers saved listings to their favorites.',

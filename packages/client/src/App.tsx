@@ -14,6 +14,7 @@ import FavoritesPage from "./pages/FavoritesPage";
 import { ChatPage } from "./pages/ChatPage";
 import { ConversationsListPage } from "./pages/ConversationsListPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { NotificationPreferencesPage } from "./pages/NotificationPreferencesPage";
 import { EnhancedAdminDashboard } from "./pages/EnhancedAdminDashboard";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -140,6 +141,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <NotificationsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/notifications/preferences"
+                    element={
+                      <ProtectedRoute>
+                        <NotificationPreferencesPage />
                       </ProtectedRoute>
                     }
                   />
