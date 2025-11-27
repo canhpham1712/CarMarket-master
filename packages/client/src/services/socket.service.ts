@@ -171,6 +171,20 @@ class SocketService {
       });
     });
 
+    this.socket.on("listingRejected", (data: {
+      listingId: string;
+      listingTitle: string;
+      message: string;
+      rejectionReason?: string;
+      rejectedAt: string;
+    }) => {
+      this.emit("listingRejected", data);
+      this.emit("globalNotification", {
+        type: "listingRejected",
+        data: data,
+      });
+    });
+
     this.socket.on("testResponse", () => {
       // Test response received
     });
@@ -180,11 +194,9 @@ class SocketService {
     if (!this.commentsSocket) return;
 
     this.commentsSocket.on("connect", () => {
-      console.log("Connected to comments namespace");
     });
 
     this.commentsSocket.on("disconnect", () => {
-      console.log("Disconnected from comments namespace");
     });
 
     this.commentsSocket.on("comment:created", (data: CommentCreatedEvent) => {
@@ -293,11 +305,9 @@ class SocketService {
     if (!this.notificationsSocket) return;
 
     this.notificationsSocket.on("connect", () => {
-      console.log("Connected to notifications namespace");
     });
 
     this.notificationsSocket.on("disconnect", () => {
-      console.log("Disconnected from notifications namespace");
     });
 
     this.notificationsSocket.on("newNotification", (data: { notification: any }) => {

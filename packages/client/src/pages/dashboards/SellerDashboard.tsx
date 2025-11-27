@@ -18,6 +18,7 @@ import { BarChart } from '../../components/charts/BarChart';
 import { AreaChart } from '../../components/charts/AreaChart';
 import { AnalyticsService } from '../../services/analytics.service';
 import type { DashboardData } from '../../services/analytics.service';
+import { METRIC_TOOLTIPS } from '../../constants/metricTooltips';
 import toast from 'react-hot-toast';
 
 export function SellerDashboard() {
@@ -89,18 +90,21 @@ export function SellerDashboard() {
               value={overview.revenue.totalRevenue}
               icon={DollarSign}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Total Revenue']}
             />
             <MetricCard
               title="Completed Sales"
               value={overview.revenue.completedTransactions}
               icon={Car}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Completed Sales']}
             />
             <MetricCard
               title="Avg Sale Value"
               value={overview.revenue.averageTransactionValue}
               icon={TrendingUp}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['Avg Sale Value']}
             />
           </>
         )}
@@ -111,48 +115,56 @@ export function SellerDashboard() {
               value={overview.listings.totalListings}
               icon={Car}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Listings']}
             />
             <MetricCard
               title="Active Listings"
               value={overview.listings.activeListings}
               icon={Car}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Active Listings']}
             />
             <MetricCard
               title="Pending Approval"
               value={overview.listings.pendingListings}
               icon={Car}
               iconColor="text-yellow-600"
+              tooltip={METRIC_TOOLTIPS['Pending Approval']}
             />
             <MetricCard
               title="Sold Listings"
               value={overview.listings.soldListings}
               icon={Car}
               iconColor="text-orange-600"
+              tooltip={METRIC_TOOLTIPS['Sold Listings']}
             />
             <MetricCard
               title="Total Views"
               value={overview.listings.totalViews}
               icon={Eye}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Views']}
             />
             <MetricCard
               title="Total Favorites"
               value={overview.listings.totalFavorites}
               icon={Heart}
               iconColor="text-red-600"
+              tooltip={METRIC_TOOLTIPS['Total Favorites']}
             />
             <MetricCard
               title="Total Inquiries"
               value={overview.listings.totalInquiries}
               icon={MessageSquare}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['Total Inquiries']}
             />
             <MetricCard
               title="Conversion Rate"
               value={`${conversionRate.toFixed(2)}%`}
               icon={TrendingUp}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Conversion Rate']}
             />
           </>
         )}
@@ -163,6 +175,7 @@ export function SellerDashboard() {
               value={`${overview.transactions.averageTimeToSale.toFixed(1)} days`}
               icon={Clock}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Avg Time to Sale']}
             />
           </>
         )}

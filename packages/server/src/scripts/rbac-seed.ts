@@ -79,6 +79,9 @@ export class RbacSeed {
       { name: 'dashboard:admin', description: 'Access admin dashboard', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
       { name: 'dashboard:seller', description: 'Access seller dashboard', action: PermissionAction.READ, resource: PermissionResource.USER },
       { name: 'dashboard:buyer', description: 'Access buyer dashboard', action: PermissionAction.READ, resource: PermissionResource.USER },
+
+      // Monitoring permissions
+      { name: 'monitoring:view', description: 'View system monitoring and real-time metrics', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
     ];
 
     const permissions: Permission[] = [];
@@ -88,10 +91,12 @@ export class RbacSeed {
       
       if (!permission) {
         permission = permissionRepository.create(data);
-        await permissionRepository.save(permission);
+        permission = await permissionRepository.save(permission);
       }
       
-      permissions.push(permission);
+      if (permission) {
+        permissions.push(permission);
+      }
     }
 
     return permissions;
@@ -120,7 +125,8 @@ export class RbacSeed {
           p.name.startsWith('system:logs') ||
           p.name === 'system:manage' || // Add system:manage for metadata management
           p.name.startsWith('analytics:') ||
-          p.name === 'dashboard:admin'
+          p.name === 'dashboard:admin' ||
+          p.name === 'monitoring:view'
         ),
       },
       {

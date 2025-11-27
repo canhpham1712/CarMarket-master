@@ -28,6 +28,7 @@ import { useAuthStore } from "../store/auth";
 import { ListingService } from "../services/listing.service";
 import type { ListingDetail } from "../types";
 import toast from "react-hot-toast";
+import { socketService } from "../services/socket.service";
 
 export function MyListingsPage() {
   const { isAuthenticated } = useAuthStore();
@@ -87,6 +88,43 @@ export function MyListingsPage() {
     } else {
       setListingsLoading(false);
     }
+  }, [isAuthenticated, fetchUserListings]);
+
+  // Listen for listing rejection notifications to refresh listings
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubscribeListingRejected = socketService.on(
+      "listingRejected",
+      (data: {
+        listingId: string;
+        listingTitle: string;
+        message: string;
+        rejectionReason?: string;
+        rejectedAt: string;
+      }) => {
+        // Refresh listings to show updated status
+        fetchUserListings();
+      }
+    );
+
+    const unsubscribeListingApproved = socketService.on(
+      "listingApproved",
+      (data: {
+        listingId: string;
+        listingTitle: string;
+        message: string;
+        approvedAt: string;
+      }) => {
+        // Refresh listings to show updated status
+        fetchUserListings();
+      }
+    );
+
+    return () => {
+      unsubscribeListingRejected();
+      unsubscribeListingApproved();
+    };
   }, [isAuthenticated, fetchUserListings]);
 
   const handleEdit = (id: string) => {

@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggingExceptionFilter } from './common/filters/logging-exception.filter';
 import { LogsService } from './modules/logs/logs.service';
+import { MonitoringInterceptor } from './modules/monitoring/monitoring.interceptor';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -45,6 +46,10 @@ async function bootstrap() {
   // Global logging interceptor
   const logsService = app.get(LogsService);
   app.useGlobalInterceptors(new LoggingInterceptor(logsService));
+
+  // Global monitoring interceptor
+  const monitoringInterceptor = app.get(MonitoringInterceptor);
+  app.useGlobalInterceptors(monitoringInterceptor);
 
   // Global exception filter
   app.useGlobalFilters(new LoggingExceptionFilter(logsService));

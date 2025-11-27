@@ -19,6 +19,8 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     NotificationsModule,
     RatingsModule,
     AnalyticsModule,
+    RedisModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -9,6 +9,7 @@ import { LineChart } from '../../components/charts/LineChart';
 import { BarChart } from '../../components/charts/BarChart';
 import { AnalyticsService } from '../../services/analytics.service';
 import type { DashboardData } from '../../services/analytics.service';
+import { METRIC_TOOLTIPS } from '../../constants/metricTooltips';
 import toast from 'react-hot-toast';
 
 export function BuyerDashboard() {
@@ -74,24 +75,28 @@ export function BuyerDashboard() {
               value={overview.engagement.totalConversations}
               icon={MessageSquare}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Conversations']}
             />
             <MetricCard
               title="Messages Sent"
               value={overview.engagement.totalMessages}
               icon={MessageSquare}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['Messages Sent']}
             />
             <MetricCard
               title="Active Conversations"
               value={overview.engagement.activeConversations}
               icon={MessageSquare}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Active Conversations']}
             />
             <MetricCard
               title="Response Rate"
               value={`${overview.engagement.responseRate.toFixed(1)}%`}
               icon={MessageSquare}
               iconColor="text-orange-600"
+              tooltip={METRIC_TOOLTIPS['Response Rate']}
             />
           </>
         )}

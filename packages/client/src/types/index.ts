@@ -89,6 +89,8 @@ export interface ListingDetail {
   isActive: boolean;
   isFeatured: boolean;
   isUrgent: boolean;
+  rejectedAt?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
   seller: User;

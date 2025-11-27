@@ -123,6 +123,17 @@ export function NotificationProvider({
             );
             // Refresh notifications from database
             refreshNotifications();
+          } else if (data.type === "listingRejected") {
+            // Show notification when listing is rejected
+            toast.error(
+              data.data.message || `Listing "${data.data.listingTitle}" has been rejected.`,
+              {
+                duration: 6000,
+                icon: "❌",
+              }
+            );
+            // Refresh notifications from database
+            refreshNotifications();
           }
         }
       );
@@ -133,7 +144,11 @@ export function NotificationProvider({
         (data: { notification: Notification }) => {
           // Add new notification to the list
           setNotifications((prev) => [data.notification, ...prev]);
-          // Refresh unread count
+          // Increment unread count immediately if notification is unread
+          if (!data.notification.isRead) {
+            setUnreadCount((prev) => prev + 1);
+          }
+          // Refresh notifications from database to ensure consistency
           refreshNotifications();
           
           // Show toast for important notifications

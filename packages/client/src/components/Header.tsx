@@ -160,7 +160,7 @@ export function Header() {
                       </Link>
                     )}
 
-                    {(hasRole('moderator') || hasPermission('analytics:view')) && (
+                    {(hasRole('moderator') || hasRole('admin') || hasRole('super_admin') || hasPermission('dashboard:moderator')) && (
                       <Link
                         to="/dashboard/moderator"
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

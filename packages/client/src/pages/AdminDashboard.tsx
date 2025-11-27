@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Users,
   Car,
@@ -28,6 +28,7 @@ import type { CarMetadata } from "../services/metadata.service";
 import { RbacManagement } from "../components/RbacManagement";
 import { RbacTest } from "../components/RbacTest";
 import toast from "react-hot-toast";
+import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<
@@ -116,6 +117,7 @@ export function AdminDashboard() {
       toast.error(errorMessage);
     }
   };
+
 
   const fetchDashboardStats = async () => {
     try {
@@ -976,15 +978,12 @@ export function AdminDashboard() {
               {/* Rejection Form */}
               {rejectionReason !== undefined && (
                 <div className="mt-6 p-4 bg-red-50 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rejection Reason (will be sent to seller)
-                  </label>
-                  <textarea
+                  <RejectionReasonTextarea
                     value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
+                    onChange={setRejectionReason}
                     placeholder="Please provide specific feedback for the seller to improve their listing..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    label="Rejection Reason (will be sent to seller)"
                   />
                 </div>
               )}

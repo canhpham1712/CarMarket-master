@@ -36,3 +36,13 @@ export function getPermissionsFromToken(token: string | null): string[] {
   return payload?.permissions || [];
 }
 
+/**
+ * Get roles from JWT token
+ */
+export function getRolesFromToken(token: string | null): string[] {
+  if (!token) return [];
+
+  const payload = decodeJWT(token);
+  return payload?.roles || [];
+}
+

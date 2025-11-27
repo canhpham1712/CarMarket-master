@@ -1,5 +1,7 @@
 import type { SVGProps, ComponentType } from 'react';
 import { Card, CardContent } from '../ui/Card';
+import { Tooltip } from '../ui/Tooltip';
+import { Info } from 'lucide-react';
 
 interface MetricCardProps {
   title: string;
@@ -11,6 +13,7 @@ interface MetricCardProps {
     isPositive: boolean;
   };
   subtitle?: string;
+  tooltip?: string;
 }
 
 export function MetricCard({
@@ -20,6 +23,7 @@ export function MetricCard({
   iconColor = 'text-blue-600',
   trend,
   subtitle,
+  tooltip,
 }: MetricCardProps) {
   const formatValue = (val: string | number): string => {
     if (typeof val === 'number') {
@@ -43,7 +47,14 @@ export function MetricCard({
               <Icon className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">{title}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-600">{title}</p>
+                {tooltip && (
+                  <Tooltip content={tooltip} position="bottom">
+                    <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help flex-shrink-0" />
+                  </Tooltip>
+                )}
+              </div>
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {formatValue(value)}
               </p>

@@ -205,6 +205,11 @@ export function CarCard({
                 Pending Review
               </span>
             )}
+            {listing.status === "rejected" && (
+              <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-medium">
+                Rejected
+              </span>
+            )}
           </div>
 
           {/* View Count */}
@@ -226,6 +231,18 @@ export function CarCard({
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
                 ✓ Sold
               </span>
+            )}
+            {listing.status === "rejected" && (
+              <div className="mt-1 space-y-1">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  ✗ Rejected
+                </span>
+                {listing.rejectionReason && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 mt-1">
+                    <strong>Reason:</strong> {listing.rejectionReason}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

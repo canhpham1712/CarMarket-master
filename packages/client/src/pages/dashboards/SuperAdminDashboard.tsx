@@ -19,6 +19,7 @@ import { BarChart } from '../../components/charts/BarChart';
 import { PieChart } from '../../components/charts/PieChart';
 import { AnalyticsService } from '../../services/analytics.service';
 import type { DashboardData } from '../../services/analytics.service';
+import { METRIC_TOOLTIPS } from '../../constants/metricTooltips';
 import toast from 'react-hot-toast';
 
 export function SuperAdminDashboard() {
@@ -84,24 +85,28 @@ export function SuperAdminDashboard() {
               value={overview.revenue.totalRevenue}
               icon={DollarSign}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Total Revenue']}
             />
             <MetricCard
               title="Platform Fees"
               value={overview.revenue.platformFees}
               icon={TrendingUp}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Platform Fees']}
             />
             <MetricCard
               title="Avg Transaction Value"
               value={overview.revenue.averageTransactionValue}
               icon={BarChart3}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['Avg Transaction Value']}
             />
             <MetricCard
               title="Completed Transactions"
               value={overview.revenue.completedTransactions}
               icon={Car}
               iconColor="text-orange-600"
+              tooltip={METRIC_TOOLTIPS['Completed Transactions']}
             />
           </>
         )}
@@ -112,24 +117,28 @@ export function SuperAdminDashboard() {
               value={overview.users.totalUsers}
               icon={Users}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Users']}
             />
             <MetricCard
               title="Active Users"
               value={overview.users.activeUsers}
               icon={Users}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Active Users']}
             />
             <MetricCard
               title="New Users"
               value={overview.users.newUsers}
               icon={TrendingUp}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['New Users']}
             />
             <MetricCard
               title="Growth Rate"
               value={`${overview.users.growthRate.toFixed(2)}%`}
               icon={TrendingUp}
               iconColor="text-orange-600"
+              tooltip={METRIC_TOOLTIPS['Growth Rate']}
             />
           </>
         )}
@@ -140,24 +149,28 @@ export function SuperAdminDashboard() {
               value={overview.listings.totalListings}
               icon={Car}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Listings']}
             />
             <MetricCard
               title="Active Listings"
               value={overview.listings.activeListings}
               icon={Car}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Active Listings']}
             />
             <MetricCard
               title="Pending Listings"
               value={overview.listings.pendingListings}
               icon={Car}
               iconColor="text-yellow-600"
+              tooltip={METRIC_TOOLTIPS['Pending Listings']}
             />
             <MetricCard
               title="Conversion Rate"
               value={`${overview.listings.conversionRate.toFixed(2)}%`}
               icon={TrendingUp}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['Conversion Rate']}
             />
           </>
         )}

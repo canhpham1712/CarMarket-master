@@ -6,7 +6,9 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { Optional } from '@nestjs/common';
 import { Notification } from '../../entities/notification.entity';
+import { RealtimeMetricsService } from '../monitoring/realtime-metrics.service';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -28,7 +30,10 @@ export class NotificationsGateway
 
   private userSockets: Map<string, string[]> = new Map();
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    @Optional() private readonly realtimeMetricsService?: RealtimeMetricsService,
+  ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
@@ -55,6 +60,13 @@ export class NotificationsGateway
       this.userSockets.set(userId, userSockets);
 
       client.join(`user:${userId}`);
+
+      // Track connection in monitoring
+      if (this.realtimeMetricsService) {
+        const ipAddress = client.handshake.address || client.request?.socket?.remoteAddress;
+        await this.realtimeMetricsService.trackUserConnection(userId, client.id);
+        await this.realtimeMetricsService.trackUserActivity(userId, 'websocket_connected', ipAddress);
+      }
     } catch (error) {
       client.disconnect();
     }
@@ -69,6 +81,13 @@ export class NotificationsGateway
         this.userSockets.set(client.userId, filtered);
       } else {
         this.userSockets.delete(client.userId);
+      }
+
+      // Track disconnection in monitoring
+      if (this.realtimeMetricsService) {
+        this.realtimeMetricsService.trackUserDisconnection(client.userId, client.id).catch(() => {
+          // Silently fail
+        });
       }
     }
   }

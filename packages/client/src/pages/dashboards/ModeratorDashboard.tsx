@@ -10,6 +10,7 @@ import { PieChart } from '../../components/charts/PieChart';
 import { LineChart } from '../../components/charts/LineChart';
 import { AnalyticsService } from '../../services/analytics.service';
 import type { DashboardData } from '../../services/analytics.service';
+import { METRIC_TOOLTIPS } from '../../constants/metricTooltips';
 import toast from 'react-hot-toast';
 
 export function ModeratorDashboard() {
@@ -75,18 +76,21 @@ export function ModeratorDashboard() {
               value={overview.listings.pendingListings}
               icon={FileText}
               iconColor="text-yellow-600"
+              tooltip={METRIC_TOOLTIPS['Pending Reviews']}
             />
             <MetricCard
               title="Approved Listings"
               value={overview.listings.activeListings}
               icon={CheckCircle}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Approved Listings']}
             />
             <MetricCard
               title="Rejected Listings"
               value={overview.listings.rejectedListings}
               icon={AlertCircle}
               iconColor="text-red-600"
+              tooltip={METRIC_TOOLTIPS['Rejected Listings']}
             />
             <MetricCard
               title="Total Reviewed"
@@ -97,6 +101,7 @@ export function ModeratorDashboard() {
               }
               icon={FileText}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Reviewed']}
             />
           </>
         )}
@@ -107,24 +112,28 @@ export function ModeratorDashboard() {
               value={overview.engagement.totalConversations}
               icon={MessageSquare}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Conversations']}
             />
             <MetricCard
               title="Active Conversations"
               value={overview.engagement.activeConversations}
               icon={MessageSquare}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Active Conversations']}
             />
             <MetricCard
               title="Total Messages"
               value={overview.engagement.totalMessages}
               icon={MessageSquare}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['Total Messages']}
             />
             <MetricCard
               title="Response Rate"
               value={`${overview.engagement.responseRate.toFixed(1)}%`}
               icon={CheckCircle}
               iconColor="text-orange-600"
+              tooltip={METRIC_TOOLTIPS['Response Rate']}
             />
           </>
         )}

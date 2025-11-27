@@ -24,7 +24,7 @@ export interface UserMetrics {
   retentionRate: number;
 }
 
-export interface UserGrowthTimeSeries {
+export interface UserGrowthTimeSeries extends Record<string, string | number> {
   date: string;
   newUsers: number;
   totalUsers: number;
@@ -44,7 +44,7 @@ export interface ListingMetrics {
   conversionRate: number;
 }
 
-export interface ListingPerformanceTimeSeries {
+export interface ListingPerformanceTimeSeries extends Record<string, string | number> {
   date: string;
   newListings: number;
   approvedListings: number;
@@ -76,7 +76,7 @@ export interface TransactionMetrics {
   completionRate: number;
 }
 
-export interface TransactionTimeSeries {
+export interface TransactionTimeSeries extends Record<string, string | number> {
   date: string;
   transactions: number;
   revenue: number;

@@ -10,6 +10,8 @@ import { BarChart } from '../../components/charts/BarChart';
 import { PieChart } from '../../components/charts/PieChart';
 import { AnalyticsService } from '../../services/analytics.service';
 import type { DashboardData } from '../../services/analytics.service';
+import { METRIC_TOOLTIPS } from '../../constants/metricTooltips';
+import { RealtimeActivityPanel } from '../../components/monitoring/RealtimeActivityPanel';
 import toast from 'react-hot-toast';
 
 export function AdminDashboard() {
@@ -74,6 +76,11 @@ export function AdminDashboard() {
       title="Admin Dashboard"
       subtitle="User and listing management overview"
     >
+      {/* Real-time Activity Panel */}
+      <div className="mb-8">
+        <RealtimeActivityPanel />
+      </div>
+
       {/* Time Range Selector */}
       <div className="mb-6 flex justify-end">
         <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
@@ -88,18 +95,21 @@ export function AdminDashboard() {
               value={overview.users.totalUsers}
               icon={Users}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Users']}
             />
             <MetricCard
               title="Active Users"
               value={overview.users.activeUsers}
               icon={Users}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Active Users']}
             />
             <MetricCard
               title="New Users"
               value={overview.users.newUsers}
               icon={TrendingUp}
               iconColor="text-purple-600"
+              tooltip={METRIC_TOOLTIPS['New Users']}
             />
           </>
         )}
@@ -110,24 +120,28 @@ export function AdminDashboard() {
               value={overview.listings.pendingListings}
               icon={Car}
               iconColor="text-yellow-600"
+              tooltip={METRIC_TOOLTIPS['Pending Listings']}
             />
             <MetricCard
               title="Approval Rate"
               value={`${approvalRate.toFixed(1)}%`}
               icon={CheckCircle}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Approval Rate']}
             />
             <MetricCard
               title="Rejection Rate"
               value={`${rejectionRate.toFixed(1)}%`}
               icon={XCircle}
               iconColor="text-red-600"
+              tooltip={METRIC_TOOLTIPS['Rejection Rate']}
             />
             <MetricCard
               title="Active Listings"
               value={overview.listings.activeListings}
               icon={Car}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Active Listings']}
             />
           </>
         )}
@@ -138,12 +152,14 @@ export function AdminDashboard() {
               value={overview.transactions.totalTransactions}
               icon={TrendingUp}
               iconColor="text-blue-600"
+              tooltip={METRIC_TOOLTIPS['Total Transactions']}
             />
             <MetricCard
               title="Completion Rate"
               value={`${overview.transactions.completionRate.toFixed(1)}%`}
               icon={CheckCircle}
               iconColor="text-green-600"
+              tooltip={METRIC_TOOLTIPS['Completion Rate']}
             />
           </>
         )}

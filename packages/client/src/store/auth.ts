@@ -7,7 +7,7 @@ import type {
   RegisterCredentials,
 } from "../types";
 import { apiClient } from "../lib/api";
-import { getPermissionsFromToken } from "../utils/jwt-utils";
+import { getPermissionsFromToken, getRolesFromToken } from "../utils/jwt-utils";
 
 interface AuthState {
   user: User | null;
@@ -48,9 +48,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
           // Extract permissions from JWT token
           const permissions = getPermissionsFromToken(response.accessToken);
+          const roles = getRolesFromToken(response.accessToken);
 
           set({
-            user: response.user,
+            user: { ...response.user, roles },
             accessToken: response.accessToken,
             permissions,
             isAuthenticated: true,
@@ -79,9 +80,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
           // Extract permissions from JWT token
           const permissions = getPermissionsFromToken(response.accessToken);
+          const roles = getRolesFromToken(response.accessToken);
 
           set({
-            user: response.user,
+            user: { ...response.user, roles },
             accessToken: response.accessToken,
             permissions,
             isAuthenticated: true,
@@ -137,8 +139,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             const response = await apiClient.get<User>("/auth/me");
             // Extract permissions from stored token
             const permissions = getPermissionsFromToken(storedToken);
+            const roles = getRolesFromToken(storedToken);
             set({
-              user: response,
+              user: { ...response, roles },
               accessToken: storedToken,
               permissions,
               isAuthenticated: true,
@@ -161,8 +164,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             const response = await apiClient.get<User>("/auth/me");
             // Extract permissions from token
             const permissions = getPermissionsFromToken(accessToken);
+            const roles = getRolesFromToken(accessToken);
             set({
-              user: response,
+              user: { ...response, roles },
               permissions,
               isAuthenticated: true,
               isLoading: false,

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
@@ -205,7 +205,28 @@ function App() {
                     background: "#363636",
                     color: "#fff",
                   },
+                  className: "toast-with-close",
                   closeButton: true,
+                  success: {
+                    duration: 4000,
+                    style: {
+                      background: "#363636",
+                      color: "#fff",
+                    },
+                    closeButton: true,
+                  },
+                  error: {
+                    duration: 4000,
+                    style: {
+                      background: "#363636",
+                      color: "#fff",
+                    },
+                    closeButton: true,
+                  },
+                }}
+                containerStyle={{
+                  top: 20,
+                  right: 20,
                 }}
               />
             </div>
