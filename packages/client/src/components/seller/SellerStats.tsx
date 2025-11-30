@@ -1,4 +1,4 @@
-import { Car, Star, Eye, TrendingUp, Calendar } from "lucide-react";
+import { Car, Star, Eye, Calendar } from "lucide-react";
 import { Card, CardContent } from "../ui/Card";
 import { RatingDisplay } from "../ratings/RatingDisplay";
 import type { RatingStats, ListingDetail } from "../../types";
@@ -133,32 +133,6 @@ export function SellerStats({
           );
         })}
       </div>
-
-      {/* Engagement Metrics */}
-      {totalListings > 0 && (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <h3 className="font-semibold text-gray-900">Engagement Metrics</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Avg Views/Listing</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {formatNumber(Math.round(totalViews / totalListings))}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Avg Favorites/Listing</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {formatNumber(Math.round(totalFavorites / totalListings))}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

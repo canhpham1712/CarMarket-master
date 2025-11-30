@@ -113,20 +113,30 @@ export function CarDetailsPage() {
 
     setIsLoading(true);
     const previousState = isFavorite;
+    const previousCount = listing.favoriteCount;
 
     try {
       if (isFavorite) {
         await FavoritesService.removeFromFavorites(listing.id);
         setIsFavorite(false);
+        setListing((prev) => 
+          prev ? { ...prev, favoriteCount: Math.max(0, prev.favoriteCount - 1) } : null
+        );
         toast.success("Removed from favorites");
       } else {
         await FavoritesService.addToFavorites(listing.id);
         setIsFavorite(true);
+        setListing((prev) => 
+          prev ? { ...prev, favoriteCount: prev.favoriteCount + 1 } : null
+        );
         toast.success("Added to favorites");
       }
     } catch (error: any) {
       // Revert state on error
       setIsFavorite(previousState);
+      setListing((prev) => 
+        prev ? { ...prev, favoriteCount: previousCount } : null
+      );
       const errorMessage =
         error.response?.data?.message || "Failed to update favorites";
       toast.error(errorMessage);

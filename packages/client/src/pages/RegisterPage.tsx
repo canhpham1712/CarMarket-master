@@ -30,7 +30,7 @@ const registerSchema = z.object({
   phoneNumber: z
     .string()
     .optional()
-    .refine((val) => !val || /^[\+]?[1-9][\d]{0,15}$/.test(val), {
+    .refine((val) => !val || /^[\+]?[0-9][\d]{8,14}$/.test(val), {
       message: "Please provide a valid phone number",
     }),
 });

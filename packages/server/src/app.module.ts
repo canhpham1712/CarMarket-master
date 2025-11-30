@@ -23,6 +23,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { GeocodingModule } from './modules/geocoding/geocoding.module';
+import { SellerVerificationModule } from './modules/seller-verification/seller-verification.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { GeocodingModule } from './modules/geocoding/geocoding.module';
     MonitoringModule,
     RecommendationsModule,
     GeocodingModule,
+    SellerVerificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

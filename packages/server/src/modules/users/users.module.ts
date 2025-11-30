@@ -5,9 +5,13 @@ import { UsersService } from './users.service';
 import { User } from '../../entities/user.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
 import { SellerRating } from '../../entities/seller-rating.entity';
+import { SellerVerificationModule } from '../seller-verification/seller-verification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, ListingDetail, SellerRating])],
+  imports: [
+    TypeOrmModule.forFeature([User, ListingDetail, SellerRating]),
+    SellerVerificationModule,
+  ],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],

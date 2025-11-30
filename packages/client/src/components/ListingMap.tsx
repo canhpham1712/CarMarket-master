@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Link } from 'react-router-dom';
 import type { ListingDetail } from '../types';
 import { formatPrice } from '../lib/utils';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+
+type MarkerClusterGroup = L.LayerGroup & {
+  addLayer(layer: L.Layer): MarkerClusterGroup;
+  clearLayers(): MarkerClusterGroup;
+};
 
 interface ListingMapProps {
   listings: ListingDetail[];
@@ -88,7 +92,7 @@ function MarkerClusterGroupComponent({
   onMarkerClick?: (listing: ListingDetail) => void;
 }) {
   const map = useMap();
-  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const clusterGroupRef = useRef<MarkerClusterGroup | null>(null);
 
   useEffect(() => {
     if (!map) return;
@@ -101,7 +105,7 @@ function MarkerClusterGroupComponent({
     if (validListings.length === 0) return;
 
     // Create cluster group
-    const clusterGroup = L.markerClusterGroup({
+    const clusterGroup: MarkerClusterGroup = (L as any).markerClusterGroup({
       chunkedLoading: true,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
@@ -218,23 +222,6 @@ export function ListingMap({
     (l) => l.latitude != null && l.longitude != null,
   );
 
-  // Debug logging
-  useEffect(() => {
-    if (listings.length > 0) {
-      console.log('Total listings:', listings.length);
-      console.log('Listings with coordinates:', validListings.length);
-      const sampleListing = listings[0];
-      console.log('Sample listing:', sampleListing);
-      console.log('Sample listing latitude:', sampleListing.latitude, 'type:', typeof sampleListing.latitude);
-      console.log('Sample listing longitude:', sampleListing.longitude, 'type:', typeof sampleListing.longitude);
-      if (validListings.length > 0) {
-        console.log('Sample valid listing:', validListings[0]);
-      } else {
-        console.warn('⚠️ No listings have coordinates. Make sure listings are created with LocationPicker and have been approved.');
-      }
-    }
-  }, [listings, validListings.length]);
-
   if (validListings.length === 0) {
     return (
       <div className={`w-full h-full ${className} flex items-center justify-center bg-gray-100 rounded-lg`}>
@@ -270,7 +257,7 @@ export function ListingMap({
         <MapBounds listings={validListings} />
         <MarkerClusterGroupComponent
           listings={validListings}
-          onMarkerClick={onMarkerClick}
+          {...(onMarkerClick ? { onMarkerClick } : {})}
         />
       </MapContainer>
     </div>

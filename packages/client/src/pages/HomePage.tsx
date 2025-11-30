@@ -1310,7 +1310,38 @@ export function HomePage() {
                       className="car-card-fade-in-up"
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
-                      <CarCard listing={listing} />
+                      <CarCard 
+                        listing={listing}
+                        onFavoriteChange={(listingId, isFavorite) => {
+                          setListings((prev) =>
+                            prev.map((l) =>
+                              l.id === listingId
+                                ? {
+                                    ...l,
+                                    favoriteCount: isFavorite
+                                      ? l.favoriteCount + 1
+                                      : Math.max(0, l.favoriteCount - 1),
+                                  }
+                                : l
+                            )
+                          );
+                          // Also update mapListings if in map view
+                          if (viewMode === "map") {
+                            setMapListings((prev) =>
+                              prev.map((l) =>
+                                l.id === listingId
+                                  ? {
+                                      ...l,
+                                      favoriteCount: isFavorite
+                                        ? l.favoriteCount + 1
+                                        : Math.max(0, l.favoriteCount - 1),
+                                    }
+                                  : l
+                              )
+                            );
+                          }
+                        }}
+                      />
                     </div>
                   ))}
                 </div>

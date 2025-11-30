@@ -13,6 +13,7 @@ import {
   Save,
   X,
   User,
+  Shield,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -26,7 +27,9 @@ import { Avatar } from "../components/ui/Avatar";
 import { PasswordChangeForm } from "../components/PasswordChangeForm";
 import { useAuthStore } from "../store/auth";
 import { ProfileService } from "../services/profile.service";
+import { SellerVerificationService } from "../services/seller-verification.service";
 import type { User as UserType } from "../types";
+import { AlertCircle } from "lucide-react";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -35,7 +38,7 @@ const profileSchema = z.object({
   phoneNumber: z
     .string()
     .optional()
-    .refine((val) => !val || /^[\+]?[1-9][\d]{0,15}$/.test(val), {
+    .refine((val) => !val || /^[\+]?[0-9][\d]{8,14}$/.test(val), {
       message: "Please provide a valid phone number",
     }),
   bio: z.string().optional(),
@@ -50,6 +53,7 @@ export function ProfilePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [verification, setVerification] = useState<any>(null);
   const { updateUser } = useAuthStore();
 
   const {
@@ -63,7 +67,17 @@ export function ProfilePage() {
 
   useEffect(() => {
     fetchUserProfile();
+    fetchVerificationStatus();
   }, []);
+
+  const fetchVerificationStatus = async () => {
+    try {
+      const status = await SellerVerificationService.getMyVerificationStatus();
+      setVerification(status);
+    } catch (error) {
+      // Silently fail - verification status is optional
+    }
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -94,6 +108,10 @@ export function ProfilePage() {
       const response = await ProfileService.updateProfile(data);
       setUser(response);
       updateUser(response);
+      
+      // Reload verification status after profile update
+      await fetchVerificationStatus();
+      
       toast.success("✅ Your profile has been updated successfully!");
       setIsEditing(false);
     } catch (error: any) {
@@ -214,6 +232,17 @@ export function ProfilePage() {
               </h2>
               <p className="text-gray-600 mb-4">{user.email}</p>
 
+              {/* Verification Link */}
+              <div className="mb-4">
+                <a
+                  href="/verify-seller"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <Shield className="w-4 h-4" />
+                  Get Verified as Seller
+                </a>
+              </div>
+
               {user.bio && (
                 <p className="text-sm text-gray-700 mb-4 italic">
                   "{user.bio}"
@@ -244,6 +273,37 @@ export function ProfilePage() {
 
         {/* Profile Form */}
         <div className="lg:col-span-2">
+          {/* Phone Verification Warning */}
+          {verification && 
+           verification.status === "approved" && 
+           !verification.isPhoneVerified && 
+           verification.phoneVerificationDeadline && (
+            <Card className="mb-6 border-yellow-200 bg-yellow-50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-yellow-900 mb-1">
+                      Phone Number Verification Required
+                    </h3>
+                    <p className="text-sm text-yellow-800 mb-2">
+                      You've changed your phone number. To maintain your verification status, please verify your new phone number within 2 days.
+                    </p>
+                    <p className="text-sm text-yellow-800 mb-3">
+                      Deadline: {new Date(verification.phoneVerificationDeadline).toLocaleString()}
+                    </p>
+                    <a
+                      href="/verify-seller"
+                      className="text-sm text-blue-600 hover:text-blue-800 underline font-medium"
+                    >
+                      Verify Phone Number Now →
+                    </a>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Personal Information</CardTitle>

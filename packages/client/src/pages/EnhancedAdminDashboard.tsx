@@ -66,6 +66,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "../components/
 import { apiClient } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import toast from "react-hot-toast";
+import { SellerVerificationService, type SellerVerification, VerificationStatus } from "../services/seller-verification.service";
 import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
 
 interface Listing {
@@ -140,6 +141,7 @@ export function EnhancedAdminDashboard() {
     | "settings"
     | "makes"
     | "metadata"
+    | "verifications"
     | null;
 
   const [activeTab, setActiveTab] = useState<
@@ -150,6 +152,7 @@ export function EnhancedAdminDashboard() {
     | "settings"
     | "makes"
     | "metadata"
+    | "verifications"
   >(tabFromUrl || "overview");
 
   // State management
@@ -183,6 +186,19 @@ export function EnhancedAdminDashboard() {
     totalPages: 0,
   });
 
+  // Seller Verifications state
+  const [pendingVerifications, setPendingVerifications] = useState<SellerVerification[]>([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(false);
+  const [selectedVerification, setSelectedVerification] = useState<SellerVerification | null>(null);
+  const [verificationRejectionReason, setVerificationRejectionReason] = useState<string>("");
+  const [verificationsPage, setVerificationsPage] = useState(1);
+  const [verificationsPagination, setVerificationsPagination] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  } | null>(null);
+
 
   // RBAC state
   const [roles, setRoles] = useState<any[]>([]);
@@ -197,6 +213,8 @@ export function EnhancedAdminDashboard() {
   // Modals
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserVerification, setSelectedUserVerification] = useState<SellerVerification | null>(null);
+  const [selectedUserLastUpdated, setSelectedUserLastUpdated] = useState<Date | null>(null);
   const [actionReason, setActionReason] = useState<string>("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState<{
@@ -253,8 +271,82 @@ export function EnhancedAdminDashboard() {
       loadListings();
     } else if (activeTab === "users") {
       loadUsers();
+    } else if (activeTab === "verifications") {
+      fetchPendingVerifications();
     }
-  }, [activeTab, listingsFilter, listingsSearch, usersSearch, listingsPagination.page, usersPagination.page]);
+  }, [activeTab, listingsFilter, listingsSearch, usersSearch, listingsPagination.page, usersPagination.page, verificationsPage]);
+
+  useEffect(() => {
+    if (activeTab === "verifications") {
+      fetchPendingVerifications();
+    }
+  }, [verificationsPage]);
+
+  // Load verification status and last updated when user is selected
+  useEffect(() => {
+    if (selectedUser && !showRoleAssignment) {
+      // Helper function to calculate last updated from all related tables
+      const calculateLastUpdated = (verification: SellerVerification | null) => {
+        const updateDates: Date[] = [];
+        
+        // From users table
+        if (selectedUser.updatedAt) {
+          updateDates.push(new Date(selectedUser.updatedAt));
+        }
+
+        // From verification (if exists)
+        if (verification?.updatedAt) {
+          updateDates.push(new Date(verification.updatedAt));
+        }
+
+        // From user's listings (get from listings array if available)
+        const userListings = listings.filter(l => l.seller?.id === selectedUser.id);
+        userListings.forEach(listing => {
+          if (listing.updatedAt) {
+            updateDates.push(new Date(listing.updatedAt));
+          }
+        });
+
+        // Get the latest date
+        if (updateDates.length > 0) {
+          const latestDate = new Date(Math.max(...updateDates.map(d => d.getTime())));
+          setSelectedUserLastUpdated(latestDate);
+        } else {
+          setSelectedUserLastUpdated(selectedUser.updatedAt ? new Date(selectedUser.updatedAt) : null);
+        }
+      };
+
+      // Try to find verification in pending verifications list first
+      const verificationInList = pendingVerifications.find(v => v.userId === selectedUser.id);
+      
+      if (verificationInList) {
+        setSelectedUserVerification(verificationInList);
+        calculateLastUpdated(verificationInList);
+      } else {
+        // If not in pending list, try to get from API by fetching all verifications
+        // This is a workaround - ideally we'd have an admin endpoint to get verification by userId
+        apiClient.get(`/seller-verification/admin/pending?page=1&limit=1000`)
+          .then((response: any) => {
+            const allVerifications = response.verifications || [];
+            const foundVerification = allVerifications.find((v: SellerVerification) => v.userId === selectedUser.id);
+            if (foundVerification) {
+              setSelectedUserVerification(foundVerification);
+              calculateLastUpdated(foundVerification);
+            } else {
+              setSelectedUserVerification(null);
+              calculateLastUpdated(null);
+            }
+          })
+          .catch(() => {
+            setSelectedUserVerification(null);
+            calculateLastUpdated(null);
+          });
+      }
+    } else {
+      setSelectedUserVerification(null);
+      setSelectedUserLastUpdated(null);
+    }
+  }, [selectedUser, showRoleAssignment, pendingVerifications, listings]);
 
   const loadDashboardData = async () => {
     try {
@@ -338,6 +430,70 @@ export function EnhancedAdminDashboard() {
     } finally {
       setUsersLoading(false);
     }
+  };
+
+  const fetchPendingVerifications = async () => {
+    try {
+      setVerificationsLoading(true);
+      const response = await SellerVerificationService.getPendingVerifications(verificationsPage, 10);
+      console.log("Pending verifications response:", response);
+      setPendingVerifications(response.verifications || []);
+      setVerificationsPagination(response.pagination);
+    } catch (error: any) {
+      console.error("Failed to load pending verifications:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load pending verifications";
+      toast.error(errorMessage);
+    } finally {
+      setVerificationsLoading(false);
+    }
+  };
+
+  const handleApproveVerification = async (id: string) => {
+    try {
+      await SellerVerificationService.reviewVerification(id, {
+        status: VerificationStatus.APPROVED,
+      });
+      toast.success("✅ Verification approved successfully!");
+      fetchPendingVerifications();
+      loadDashboardData();
+      setSelectedVerification(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to approve verification");
+    }
+  };
+
+  const handleRejectVerification = async (id: string, reason?: string) => {
+    try {
+      await SellerVerificationService.reviewVerification(id, {
+        status: VerificationStatus.REJECTED,
+        rejectionReason: reason,
+      });
+      toast.success("❌ Verification rejected and seller has been notified.");
+      fetchPendingVerifications();
+      loadDashboardData();
+      setSelectedVerification(null);
+      setVerificationRejectionReason("");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to reject verification");
+    }
+  };
+
+  const approveVerificationWithConfirmation = (id: string, verificationName?: string) => {
+    showConfirmation(
+      "approveVerification",
+      id,
+      "Approve Verification",
+      `Are you sure you want to approve the verification for ${verificationName || "this seller"}? This action cannot be undone.`
+    );
+  };
+
+  const rejectVerificationWithConfirmation = (id: string, verificationName?: string) => {
+    showConfirmation(
+      "rejectVerification",
+      id,
+      "Reject Verification",
+      `Are you sure you want to reject the verification for ${verificationName || "this seller"}? Please provide a rejection reason.`
+    );
   };
 
   const handleListingAction = async (action: string, listingId: string) => {
@@ -434,18 +590,43 @@ export function EnhancedAdminDashboard() {
     const { type, target } = confirmationAction;
 
     try {
+      // Check for verification-related actions
+      if (type === "approveVerification") {
+        await handleApproveVerification(target);
+      } else if (type === "rejectVerification") {
+        // For reject, we need to show the rejection reason modal
+        const verification = pendingVerifications.find(v => v.id === target) || selectedVerification;
+        if (verification) {
+          setSelectedVerification(verification);
+          setVerificationRejectionReason("");
+        }
+        setShowConfirmationModal(false);
+        setConfirmationAction(null);
+        return; // Don't close modal, let user provide rejection reason
+      }
+      // Check for listing-related actions that need rejection reason
+      else if (type === "reject") {
+        // For reject listing, show the listing detail modal with rejection reason
+        const listing = listings.find(l => l.id === target);
+        if (listing) {
+          setSelectedListing(listing);
+          setActionReason("");
+        }
+        setShowConfirmationModal(false);
+        setConfirmationAction(null);
+        return; // Don't close modal, let user provide rejection reason
+      }
       // Check for user-related actions
-      if (
+      else if (
         type.includes("user") ||
         type === "makeAdmin"
       ) {
         await handleUserAction(type, target);
       }
-      // Check for listing-related actions
+      // Check for other listing-related actions
       else if (
         type.includes("listing") ||
         type === "approve" ||
-        type === "reject" ||
         type === "delete" ||
         type === "featured" ||
         type === "deactivate" ||
@@ -454,10 +635,12 @@ export function EnhancedAdminDashboard() {
         await handleListingAction(type, target);
       }
     } finally {
-      // Always close the modal after action completion
-      setShowConfirmationModal(false);
-      setConfirmationAction(null);
-      setActionReason("");
+      // Always close the modal after action completion (unless it's reject action)
+      if (type !== "rejectVerification" && type !== "reject") {
+        setShowConfirmationModal(false);
+        setConfirmationAction(null);
+        setActionReason("");
+      }
     }
   };
 
@@ -471,6 +654,8 @@ export function EnhancedAdminDashboard() {
         return "text-red-600 bg-red-100";
       case "inactive":
         return "text-gray-600 bg-gray-100";
+      case "sold":
+        return "text-blue-600 bg-blue-100";
       default:
         return "text-blue-600 bg-blue-100";
     }
@@ -912,7 +1097,7 @@ export function EnhancedAdminDashboard() {
             value={activeTab}
             onValueChange={(value) => handleTabChange(value as any)}
           >
-            <TabsList className="grid w-full grid-cols-9">
+            <TabsList className="grid w-full grid-cols-10">
               <PermissionGate permission="admin:dashboard">
                 <TabsTrigger
                   value="overview"
@@ -938,6 +1123,15 @@ export function EnhancedAdminDashboard() {
                 >
                   <Users className="h-4 w-4" />
                   <span>Users</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:dashboard">
+                <TabsTrigger
+                  value="verifications"
+                  className="flex items-center space-x-2"
+                >
+                  <Shield className="h-4 w-4" />
+                  <span>Verifications</span>
                 </TabsTrigger>
               </PermissionGate>
               <PermissionGate permission="system:manage">
@@ -1146,6 +1340,7 @@ export function EnhancedAdminDashboard() {
                           <option value="approved">Approved</option>
                           <option value="rejected">Rejected</option>
                           <option value="inactive">Inactive</option>
+                          <option value="sold">Sold</option>
                         </select>
                       </div>
                     </div>
@@ -1280,10 +1475,14 @@ export function EnhancedAdminDashboard() {
                                           <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={() => {
-                                              setSelectedListing(listing);
-                                              setActionReason("");
-                                            }}
+                                            onClick={() =>
+                                              showConfirmation(
+                                                "reject",
+                                                listing.id,
+                                                "Reject Listing",
+                                                `Are you sure you want to reject "${listing.title}"? Please provide a rejection reason.`
+                                              )
+                                            }
                                             title="Reject this listing"
                                           >
                                             <XCircle className="h-4 w-4 text-red-600" />
@@ -1632,6 +1831,321 @@ export function EnhancedAdminDashboard() {
                     )}
                   </CardContent>
                 </Card>
+              </div>
+            </TabsContent>
+
+            {/* Seller Verifications Tab */}
+            <TabsContent value="verifications">
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Seller Verifications ({verificationsPagination?.total || pendingVerifications.length})
+                  </h2>
+                  <Button onClick={() => fetchPendingVerifications()} variant="outline">
+                    Refresh
+                  </Button>
+                </div>
+
+                {verificationsLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading verifications...</p>
+                  </div>
+                ) : pendingVerifications.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600">No pending verifications</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingVerifications.map((verification) => (
+                      <Card key={verification.id}>
+                        <CardContent className="p-6">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {verification.fullName || "Unknown"}
+                                </h3>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  verification.status === VerificationStatus.PENDING
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}>
+                                  {verification.status}
+                                </span>
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {verification.verificationLevel}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 mt-4 text-sm text-gray-600">
+                                <div>
+                                  <span className="font-medium">Phone:</span> {verification.phoneNumber || "N/A"}
+                                  {verification.isPhoneVerified && (
+                                    <CheckCircle className="w-4 h-4 text-green-600 inline ml-1" />
+                                  )}
+                                </div>
+                                <div>
+                                  <span className="font-medium">ID Number:</span> {verification.idNumber || "N/A"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Address:</span> {verification.address || "N/A"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">City:</span> {verification.city || "N/A"}
+                                </div>
+                                {verification.bankAccountNumber && (
+                                  <div>
+                                    <span className="font-medium">Bank:</span> {verification.bankName} - {verification.bankAccountNumber}
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="font-medium">Submitted:</span>{" "}
+                                  {new Date(verification.submittedAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                              {verification.documents && verification.documents.length > 0 && (
+                                <div className="mt-4">
+                                  <p className="text-sm font-medium text-gray-700 mb-2">Documents:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {verification.documents.map((doc, idx) => (
+                                      <a
+                                        key={idx}
+                                        href={doc.fileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-600 hover:underline"
+                                      >
+                                        {doc.documentType} ({doc.fileName})
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  SellerVerificationService.getVerificationById(verification.id)
+                                    .then(setSelectedVerification)
+                                    .catch(() => toast.error("Failed to load verification details"));
+                                }}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                className="bg-green-600 text-white hover:bg-green-700"
+                                size="sm"
+                                onClick={() => approveVerificationWithConfirmation(verification.id, verification.fullName || undefined)}
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => rejectVerificationWithConfirmation(verification.id, verification.fullName || undefined)}
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    {/* Pagination */}
+                    {verificationsPagination && verificationsPagination.totalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => setVerificationsPage((p) => Math.max(1, p - 1))}
+                          disabled={verificationsPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-gray-600">
+                          Page {verificationsPage} of {verificationsPagination.totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setVerificationsPage((p) =>
+                              Math.min(verificationsPagination.totalPages, p + 1)
+                            )
+                          }
+                          disabled={verificationsPage === verificationsPagination.totalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Verification Detail Modal */}
+                {selectedVerification && (
+                  <Dialog open={!!selectedVerification} onOpenChange={(open) => {
+                    if (!open) {
+                      setSelectedVerification(null);
+                      setVerificationRejectionReason("");
+                    }
+                  }}>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Verification Details</DialogTitle>
+                        <DialogDescription>
+                          Review seller verification information and documents
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Full Name</p>
+                              <p className="text-gray-900">{selectedVerification.fullName || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Phone Number</p>
+                              <p className="text-gray-900 flex items-center gap-2">
+                                {selectedVerification.phoneNumber || "N/A"}
+                                {selectedVerification.isPhoneVerified && (
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                )}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">ID Number</p>
+                              <p className="text-gray-900">{selectedVerification.idNumber || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Date of Birth</p>
+                              <p className="text-gray-900">
+                                {selectedVerification.dateOfBirth
+                                  ? new Date(selectedVerification.dateOfBirth).toLocaleDateString()
+                                  : "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Address</p>
+                              <p className="text-gray-900">{selectedVerification.address || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">City</p>
+                              <p className="text-gray-900">{selectedVerification.city || "N/A"}</p>
+                            </div>
+                            {selectedVerification.bankAccountNumber && (
+                              <>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">Bank Name</p>
+                                  <p className="text-gray-900">{selectedVerification.bankName || "N/A"}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">Account Number</p>
+                                  <p className="text-gray-900">{selectedVerification.bankAccountNumber}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">Account Holder</p>
+                                  <p className="text-gray-900">{selectedVerification.accountHolderName || "N/A"}</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          {selectedVerification.documents && selectedVerification.documents.length > 0 && (
+                            <div>
+                              <p className="text-sm font-medium text-gray-600 mb-2">Documents</p>
+                              <div className="space-y-2">
+                                {selectedVerification.documents.map((doc, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={doc.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block p-3 border rounded-lg hover:bg-gray-50"
+                                  >
+                                    <p className="font-medium">{doc.documentType}</p>
+                                    <p className="text-sm text-gray-600">{doc.fileName}</p>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {verificationRejectionReason !== undefined && (
+                            <div>
+                              <RejectionReasonTextarea
+                                value={verificationRejectionReason}
+                                onChange={setVerificationRejectionReason}
+                                placeholder="Please provide specific feedback for the seller..."
+                                rows={3}
+                                label="Rejection Reason (will be sent to seller)"
+                              />
+                            </div>
+                          )}
+                          <div className="flex justify-end gap-3 pt-4 border-t">
+                            {verificationRejectionReason !== undefined ? (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setVerificationRejectionReason("");
+                                    setSelectedVerification(null);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => {
+                                    if (selectedVerification) {
+                                      handleRejectVerification(
+                                        selectedVerification.id,
+                                        verificationRejectionReason
+                                      );
+                                    }
+                                  }}
+                                >
+                                  Reject Verification
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setSelectedVerification(null)}
+                                >
+                                  Close
+                                </Button>
+                                <Button
+                                  className="bg-green-600 text-white hover:bg-green-700"
+                                  onClick={() => {
+                                    if (selectedVerification) {
+                                      handleApproveVerification(selectedVerification.id);
+                                    }
+                                  }}
+                                >
+                                  Approve Verification
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setVerificationRejectionReason("");
+                                  }}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </TabsContent>
 
@@ -3813,6 +4327,180 @@ export function EnhancedAdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Details Dialog */}
+      {selectedUser && !showRoleAssignment && (
+        <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>User Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6">
+              {/* User Information */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <User className="h-4 w-4" />
+                      <span className="font-medium">Full Name</span>
+                    </div>
+                    <p className="text-gray-900">{selectedUser.firstName} {selectedUser.lastName}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Mail className="h-4 w-4" />
+                      <span className="font-medium">Email</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-gray-900">{selectedUser.email}</p>
+                      {selectedUser.isEmailVerified && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <CheckCircle className="h-3 w-3" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Phone className="h-4 w-4" />
+                      <span className="font-medium">Phone</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-gray-900">{selectedUser.phoneNumber || "N/A"}</p>
+                      {selectedUserVerification?.isPhoneVerified && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <CheckCircle className="h-3 w-3" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">Date of Birth</span>
+                    </div>
+                    <p className="text-gray-900">
+                      {selectedUser.dateOfBirth
+                        ? new Date(selectedUser.dateOfBirth).toLocaleDateString()
+                        : "N/A"}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Shield className="h-4 w-4" />
+                      <span className="font-medium">Role</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {allUserRoles[selectedUser.id] && allUserRoles[selectedUser.id].length > 0 ? (
+                        allUserRoles[selectedUser.id].map((userRole, index) => {
+                          const roleId = userRole.id || userRole.role?.id || userRole.roleId;
+                          const roleName = userRole.name || getRoleName(roleId);
+                          return (
+                            <span
+                              key={index}
+                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                            >
+                              {roleName}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-sm text-gray-400 italic">No roles assigned</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <UserCheck className="h-4 w-4" />
+                      <span className="font-medium">Status</span>
+                    </div>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        selectedUser.isActive
+                          ? "text-green-600 bg-green-100"
+                          : "text-red-600 bg-red-100"
+                      }`}
+                    >
+                      {selectedUser.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">Joined</span>
+                    </div>
+                    <p className="text-gray-900">
+                      {new Date(selectedUser.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">Last Updated</span>
+                    </div>
+                    <p className="text-gray-900">
+                      {selectedUserLastUpdated
+                        ? selectedUserLastUpdated.toLocaleDateString()
+                        : new Date(selectedUser.updatedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200"></div>
+
+              {/* Actions */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Actions</h3>
+                <div className="flex gap-3">
+                  <PermissionGate permission="user:manage">
+                    {selectedUser.isActive && selectedUser.role !== "admin" ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setActionReason("");
+                          showConfirmation(
+                            "deactivate",
+                            selectedUser.id,
+                            "Deactivate User",
+                            `Are you sure you want to deactivate ${selectedUser.firstName} ${selectedUser.lastName}?`
+                          );
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <UserX className="h-4 w-4" />
+                        Deactivate Account
+                      </Button>
+                    ) : null}
+                    {selectedUser.role === "user" && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          showConfirmation(
+                            "makeAdmin",
+                            selectedUser.id,
+                            "Promote to Admin",
+                            `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
+                          )
+                        }
+                        className="flex items-center gap-2"
+                      >
+                        <Shield className="h-4 w-4" />
+                        Promote to Admin
+                      </Button>
+                    )}
+                  </PermissionGate>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

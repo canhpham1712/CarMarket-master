@@ -130,6 +130,7 @@ export class UsersController {
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
   ) {
-    return this.usersService.getUserListings(id, page, limit);
+    // Public view - only show approved and active listings
+    return this.usersService.getUserListings(id, page, limit, true);
   }
 }

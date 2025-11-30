@@ -11,6 +11,7 @@ import { UserProfilePage } from "./pages/UserProfilePage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { MyListingsPage } from "./pages/MyListingsPage";
 import FavoritesPage from "./pages/FavoritesPage";
+import { SellerVerificationPage } from "./pages/SellerVerificationPage";
 import { ChatPage } from "./pages/ChatPage";
 import { ConversationsListPage } from "./pages/ConversationsListPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
@@ -102,6 +103,16 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/verify-seller"
+                    element={
+                      <ProtectedRoute>
+                        <ErrorBoundary>
+                          <SellerVerificationPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     }
                   />

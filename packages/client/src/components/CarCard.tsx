@@ -48,13 +48,15 @@ export function CarCard({
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPhoneNumber, setShowPhoneNumber] = useState(false);
+  const [favoriteCount, setFavoriteCount] = useState(listing.favoriteCount);
 
   const primaryImage =
     listing.carDetail.images.find((img) => img.isPrimary) ||
     listing.carDetail.images[0];
 
-  // Check if listing is favorited
+  // Check if listing is favorited and sync favoriteCount
   useEffect(() => {
+    setFavoriteCount(listing.favoriteCount);
     if (isAuthenticated && user) {
       FavoritesService.checkIfFavorite(listing.id)
         .then((result) => {
@@ -68,7 +70,7 @@ export function CarCard({
           setIsFavorite(false);
         });
     }
-  }, [listing.id, isAuthenticated, user]);
+  }, [listing.id, listing.favoriteCount, isAuthenticated, user]);
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -86,11 +88,13 @@ export function CarCard({
       if (isFavorite) {
         await FavoritesService.removeFromFavorites(listing.id);
         setIsFavorite(false);
+        setFavoriteCount((prev) => Math.max(0, prev - 1));
         toast.success("Removed from favorites");
         onFavoriteChange?.(listing.id, false);
       } else {
         await FavoritesService.addToFavorites(listing.id);
         setIsFavorite(true);
+        setFavoriteCount((prev) => prev + 1);
         toast.success("Added to favorites");
         onFavoriteChange?.(listing.id, true);
       }
@@ -289,7 +293,7 @@ export function CarCard({
             <div className="flex items-center space-x-3">
               <div className="flex items-center">
                 <Heart className="w-3 h-3 mr-1" />
-                {listing.favoriteCount}
+                {favoriteCount}
               </div>
               <div className="flex items-center">
                 <Eye className="w-3 h-3 mr-1" />

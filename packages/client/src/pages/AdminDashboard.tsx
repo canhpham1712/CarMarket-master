@@ -29,10 +29,11 @@ import { RbacManagement } from "../components/RbacManagement";
 import { RbacTest } from "../components/RbacTest";
 import toast from "react-hot-toast";
 import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
+import { SellerVerificationService, type SellerVerification, VerificationStatus } from "../services/seller-verification.service";
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "makes" | "metadata" | "listings" | "rbac"
+    "overview" | "makes" | "metadata" | "listings" | "rbac" | "verifications"
   >("overview");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [adminMetadata, setAdminMetadata] = useState<AdminMetadata | null>(
@@ -57,6 +58,17 @@ export function AdminDashboard() {
     total: number;
     totalPages: number;
   } | null>(null);
+  const [pendingVerifications, setPendingVerifications] = useState<SellerVerification[]>([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(false);
+  const [selectedVerification, setSelectedVerification] = useState<SellerVerification | null>(null);
+  const [verificationRejectionReason, setVerificationRejectionReason] = useState<string>("");
+  const [verificationsPage, setVerificationsPage] = useState(1);
+  const [verificationsPagination, setVerificationsPagination] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -65,6 +77,10 @@ export function AdminDashboard() {
       setListingsPage(1); // Reset to page 1 when switching to listings tab
       fetchPendingListings();
     }
+    if (activeTab === "verifications") {
+      setVerificationsPage(1);
+      fetchPendingVerifications();
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -72,6 +88,12 @@ export function AdminDashboard() {
       fetchPendingListings();
     }
   }, [listingsPage]);
+
+  useEffect(() => {
+    if (activeTab === "verifications") {
+      fetchPendingVerifications();
+    }
+  }, [verificationsPage]);
 
   const fetchPendingListings = async () => {
     try {
@@ -83,6 +105,49 @@ export function AdminDashboard() {
       toast.error("Failed to load pending listings");
     } finally {
       setListingsLoading(false);
+    }
+  };
+
+  const fetchPendingVerifications = async () => {
+    try {
+      setVerificationsLoading(true);
+      const response = await SellerVerificationService.getPendingVerifications(verificationsPage, 10);
+      setPendingVerifications(response.verifications || []);
+      setVerificationsPagination(response.pagination);
+    } catch (error) {
+      toast.error("Failed to load pending verifications");
+    } finally {
+      setVerificationsLoading(false);
+    }
+  };
+
+  const handleApproveVerification = async (id: string) => {
+    try {
+      await SellerVerificationService.reviewVerification(id, {
+        status: VerificationStatus.APPROVED,
+      });
+      toast.success("✅ Verification approved successfully!");
+      fetchPendingVerifications();
+      fetchDashboardStats();
+      setSelectedVerification(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to approve verification");
+    }
+  };
+
+  const handleRejectVerification = async (id: string, reason?: string) => {
+    try {
+      await SellerVerificationService.reviewVerification(id, {
+        status: VerificationStatus.REJECTED,
+        rejectionReason: reason,
+      });
+      toast.success("❌ Verification rejected and seller has been notified.");
+      fetchPendingVerifications();
+      fetchDashboardStats();
+      setSelectedVerification(null);
+      setVerificationRejectionReason("");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to reject verification");
     }
   };
 
@@ -336,6 +401,7 @@ export function AdminDashboard() {
           {[
             { id: "overview", label: "Overview", icon: BarChart3 },
             { id: "listings", label: "Pending Listings", icon: CheckCircle },
+            { id: "verifications", label: "Seller Verifications", icon: Shield },
             { id: "makes", label: "Car Makes", icon: Car },
             { id: "metadata", label: "Metadata", icon: Database },
             { id: "rbac", label: "RBAC Management", icon: Shield },
@@ -1061,6 +1127,331 @@ export function AdminDashboard() {
       )}
 
       {/* RBAC Management Tab */}
+      {/* Seller Verifications Tab */}
+      {activeTab === "verifications" && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Seller Verifications ({verificationsPagination?.total || pendingVerifications.length})
+            </h2>
+            <Button onClick={() => fetchPendingVerifications()} variant="outline">
+              Refresh
+            </Button>
+          </div>
+
+          {verificationsLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading verifications...</p>
+            </div>
+          ) : pendingVerifications.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No pending verifications</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {pendingVerifications.map((verification) => (
+                <Card key={verification.id}>
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {verification.fullName || "Unknown"}
+                          </h3>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            verification.status === VerificationStatus.PENDING
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}>
+                            {verification.status}
+                          </span>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {verification.verificationLevel}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-4 text-sm text-gray-600">
+                          <div>
+                            <span className="font-medium">Phone:</span> {verification.phoneNumber || "N/A"}
+                            {verification.isPhoneVerified && (
+                              <CheckCircle className="w-4 h-4 text-green-600 inline ml-1" />
+                            )}
+                          </div>
+                          <div>
+                            <span className="font-medium">ID Number:</span> {verification.idNumber || "N/A"}
+                          </div>
+                          <div>
+                            <span className="font-medium">Address:</span> {verification.address || "N/A"}
+                          </div>
+                          <div>
+                            <span className="font-medium">City:</span> {verification.city || "N/A"}
+                          </div>
+                          {verification.bankAccountNumber && (
+                            <div>
+                              <span className="font-medium">Bank:</span> {verification.bankName} - {verification.bankAccountNumber}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-medium">Submitted:</span>{" "}
+                            {new Date(verification.submittedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        {verification.documents && verification.documents.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Documents:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {verification.documents.map((doc, idx) => (
+                                <a
+                                  key={idx}
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  {doc.documentType} ({doc.fileName})
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            SellerVerificationService.getVerificationById(verification.id)
+                              .then(setSelectedVerification)
+                              .catch(() => toast.error("Failed to load verification details"));
+                          }}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          className="bg-green-600 text-white hover:bg-green-700"
+                          size="sm"
+                          onClick={() => handleApproveVerification(verification.id)}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedVerification(verification);
+                            setVerificationRejectionReason("");
+                          }}
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Pagination */}
+              {verificationsPagination && verificationsPagination.totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => setVerificationsPage((p) => Math.max(1, p - 1))}
+                    disabled={verificationsPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    Page {verificationsPage} of {verificationsPagination.totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setVerificationsPage((p) =>
+                        Math.min(verificationsPagination.totalPages, p + 1)
+                      )
+                    }
+                    disabled={verificationsPage === verificationsPagination.totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Verification Detail Modal */}
+          {selectedVerification && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold">Verification Details</h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedVerification(null);
+                        setVerificationRejectionReason("");
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Full Name</label>
+                        <p className="text-gray-900">{selectedVerification.fullName || "N/A"}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Phone Number</label>
+                        <p className="text-gray-900">
+                          {selectedVerification.phoneNumber || "N/A"}
+                          {selectedVerification.isPhoneVerified && (
+                            <CheckCircle className="w-4 h-4 text-green-600 inline ml-1" />
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">ID Number</label>
+                        <p className="text-gray-900">{selectedVerification.idNumber || "N/A"}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+                        <p className="text-gray-900">
+                          {selectedVerification.dateOfBirth
+                            ? new Date(selectedVerification.dateOfBirth).toLocaleDateString()
+                            : "N/A"}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-sm font-medium text-gray-700">Address</label>
+                        <p className="text-gray-900">{selectedVerification.address || "N/A"}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">City</label>
+                        <p className="text-gray-900">{selectedVerification.city || "N/A"}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Country</label>
+                        <p className="text-gray-900">{selectedVerification.country || "N/A"}</p>
+                      </div>
+                    </div>
+
+                    {selectedVerification.bankAccountNumber && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium mb-2">Bank Information</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">Bank Name</label>
+                            <p className="text-gray-900">{selectedVerification.bankName || "N/A"}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">Account Number</label>
+                            <p className="text-gray-900">{selectedVerification.bankAccountNumber || "N/A"}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">Account Holder</label>
+                            <p className="text-gray-900">{selectedVerification.accountHolderName || "N/A"}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedVerification.documents && selectedVerification.documents.length > 0 && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium mb-2">Documents</h4>
+                        <div className="space-y-2">
+                          {selectedVerification.documents.map((doc, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <span className="text-sm">{doc.documentType}</span>
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:underline"
+                              >
+                                View Document
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {verificationRejectionReason !== "" ? (
+                      <div className="border-t pt-4">
+                        <RejectionReasonTextarea
+                          value={verificationRejectionReason}
+                          onChange={setVerificationRejectionReason}
+                          placeholder="Please provide a reason for rejection..."
+                        />
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => setVerificationRejectionReason("")}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => {
+                              handleRejectVerification(
+                                selectedVerification.id,
+                                verificationRejectionReason
+                              );
+                            }}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Reject with Feedback
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-t pt-4 flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedVerification(null);
+                            setVerificationRejectionReason("");
+                          }}
+                        >
+                          Close
+                        </Button>
+                        {selectedVerification.status === VerificationStatus.PENDING && (
+                          <>
+                            <Button
+                              className="bg-green-600 text-white hover:bg-green-700"
+                              onClick={() => handleApproveVerification(selectedVerification.id)}
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Approve Verification
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => setVerificationRejectionReason("")}
+                            >
+                              <XCircle className="w-4 h-4 mr-2" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === "rbac" && (
         <div className="space-y-6">
           <RbacTest />

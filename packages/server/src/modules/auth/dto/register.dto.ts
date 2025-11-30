@@ -32,7 +32,7 @@ export class RegisterDto {
   @IsOptional()
   @ValidateIf((o) => o.phoneNumber !== undefined && o.phoneNumber !== '')
   @IsString({ message: 'Phone number must be a string' })
-  @Matches(/^[\+]?[1-9][\d]{0,15}$/, {
+  @Matches(/^[\+]?[0-9][\d]{8,14}$/, {
     message: 'Please provide a valid phone number',
   })
   phoneNumber?: string;

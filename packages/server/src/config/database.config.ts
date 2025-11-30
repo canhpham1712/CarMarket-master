@@ -28,6 +28,9 @@ import { SellerRating } from '../entities/seller-rating.entity';
 import { UserRecommendation } from '../entities/user-recommendation.entity';
 import { UserSearchHistory } from '../entities/user-search-history.entity';
 import { UserViewHistory } from '../entities/user-view-history.entity';
+import { SellerVerification } from '../entities/seller-verification.entity';
+import { SellerVerificationDocument } from '../entities/seller-verification-document.entity';
+import { PhoneVerificationOtp } from '../entities/phone-verification-otp.entity';
 
 @Injectable()
 export class DatabaseConfig implements TypeOrmOptionsFactory {
@@ -79,6 +82,9 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         UserRecommendation,
         UserSearchHistory,
         UserViewHistory,
+        SellerVerification,
+        SellerVerificationDocument,
+        PhoneVerificationOtp,
       ],
       synchronize: false,
       migrationsRun: false, // Disabled: Run migrations manually using SQL script

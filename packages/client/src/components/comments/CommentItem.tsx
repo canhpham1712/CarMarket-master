@@ -173,6 +173,25 @@ export function CommentItem({
     return 'text-sm';
   };
 
+  // Build avatar URL - handle null, undefined, empty string, and full URLs
+  const getAvatarSrc = () => {
+    const profileImage = comment.user.profileImage;
+    if (!profileImage || !profileImage.trim()) {
+      return undefined;
+    }
+    
+    // If already a full URL (http/https), use it directly
+    if (profileImage.startsWith('http://') || profileImage.startsWith('https://')) {
+      return profileImage;
+    }
+    
+    // Otherwise, prepend base URL
+    const path = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
+    return `http://localhost:3000${path}`;
+  };
+  
+  const avatarSrc = getAvatarSrc();
+
   return (
     <div
       ref={commentRef}
@@ -192,7 +211,7 @@ export function CommentItem({
 
       <div className={`flex space-x-3 ${getIndentationClasses()}`}>
         <Avatar
-          src={comment.user.profileImage}
+          src={avatarSrc}
           alt={`${comment.user.firstName} ${comment.user.lastName}`}
           size={getAvatarSize()}
         />
