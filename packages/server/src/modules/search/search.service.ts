@@ -47,9 +47,11 @@ export class SearchService {
     }
 
     const searchTerm = query.trim();
+    // Tạo từ khóa chuẩn hóa: bỏ hết ký tự không phải chữ và số
+    const normalizedTerm = searchTerm.replace(/[^a-zA-Z0-9]/g, '');
 
     // FUZZY SEARCH LOGIC CHO GỢI Ý:
-    // Kết hợp ILIKE (chính xác một phần) và SIMILARITY (giống nhau)
+    // Kết hợp ILIKE, SIMILARITY và Normalized Search (cho trường hợp crv -> cr-v)
     const listings = await this.listingRepository
       .createQueryBuilder('listing')
       .leftJoinAndSelect('listing.carDetail', 'carDetail')
@@ -65,17 +67,26 @@ export class SearchService {
           carDetail.model ILIKE :likeQuery OR
           SIMILARITY(listing.title, :query) > 0.3 OR
           SIMILARITY(carDetail.make, :query) > 0.3 OR
-          SIMILARITY(carDetail.model, :query) > 0.3
+          SIMILARITY(carDetail.model, :query) > 0.3 OR
+          -- Logic mới: So sánh chuỗi đã chuẩn hóa (bỏ ký tự đặc biệt)
+          REGEXP_REPLACE(listing.title, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery OR
+          REGEXP_REPLACE(carDetail.make, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery OR
+          REGEXP_REPLACE(carDetail.model, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery
         )`,
-        { query: searchTerm, likeQuery: `%${searchTerm}%` },
+        { 
+          query: searchTerm, 
+          likeQuery: `%${searchTerm}%`,
+          normalizedQuery: `%${normalizedTerm}%` 
+        },
       )
       // TÍNH ĐIỂM SẮP XẾP:
-      // Ưu tiên 1: Chứa chính xác từ khóa (ILIKE) -> Cộng điểm lớn (10, 9, 8)
-      // Ưu tiên 2: Giống nhau (SIMILARITY) -> Cộng điểm nhỏ (0-1)
       .addSelect(`(
         CASE 
           WHEN listing.title ILIKE :likeQuery THEN 10 
+          -- Ưu tiên cao cho match chuẩn hóa (ví dụ nhập crv khớp cr-v)
+          WHEN REGEXP_REPLACE(listing.title, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery THEN 9.5
           WHEN carDetail.model ILIKE :likeQuery THEN 9
+          WHEN REGEXP_REPLACE(carDetail.model, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery THEN 8.5
           WHEN carDetail.make ILIKE :likeQuery THEN 8
           ELSE 0 
         END + 
@@ -102,7 +113,6 @@ export class SearchService {
       return {
         id: listing.id,
         title: listing.title,
-        // Tạo subtitle rõ ràng hơn cho frontend
         subTitle: `${listing.carDetail.year} ${listing.carDetail.make} ${listing.carDetail.model}`,
         price: listing.price,
         thumbnail: thumbnail,
@@ -133,7 +143,7 @@ export class SearchService {
       country,
       page = 1,
       limit = 10,
-      sortBy = 'createdAt', // Mặc định là createdAt nếu frontend không gửi
+      sortBy = 'createdAt', 
       sortOrder = 'DESC',
     } = filters;
 
@@ -149,16 +159,14 @@ export class SearchService {
         .where('listing.status = :status', { status: ListingStatus.APPROVED })
         .andWhere('listing.isActive = :isActive', { isActive: true });
 
-    // QUAN TRỌNG: Xác định xem có nên kích hoạt chế độ "Relevance Sort" không
-    // Kích hoạt khi: Có từ khóa tìm kiếm VÀ (User chọn sort theo độ liên quan HOẶC User để mặc định)
     const shouldUseRelevanceSort = query && query.trim() && 
       (sortBy === 'relevance' || sortBy === 'createdAt' || !filters.sortBy);
 
-    // 1. Xử lý tìm kiếm chung (General Query) với Fuzzy Search
+    // 1. Xử lý tìm kiếm chung (General Query)
     if (query && query.trim()) {
       const searchTerm = query.trim();
+      const normalizedTerm = searchTerm.replace(/[^a-zA-Z0-9]/g, '');
       
-      // Filter logic: Kết hợp ILIKE và SIMILARITY (ngưỡng 0.3)
       queryBuilder.andWhere(
         `(
           listing.title ILIKE :likeQuery OR
@@ -166,17 +174,26 @@ export class SearchService {
           carDetail.model ILIKE :likeQuery OR
           SIMILARITY(listing.title, :query) > 0.3 OR
           SIMILARITY(carDetail.make, :query) > 0.3 OR 
-          SIMILARITY(carDetail.model, :query) > 0.3
+          SIMILARITY(carDetail.model, :query) > 0.3 OR
+          -- Logic mới: Normalized Search
+          REGEXP_REPLACE(listing.title, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery OR
+          REGEXP_REPLACE(carDetail.make, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery OR
+          REGEXP_REPLACE(carDetail.model, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery
         )`,
-        { query: searchTerm, likeQuery: `%${searchTerm}%` },
+        { 
+          query: searchTerm, 
+          likeQuery: `%${searchTerm}%`,
+          normalizedQuery: `%${normalizedTerm}%` 
+        },
       );
 
-      // Nếu dùng Relevance Sort, tính điểm và sắp xếp luôn tại đây
       if (shouldUseRelevanceSort) {
         queryBuilder.addSelect(`(
           CASE 
             WHEN listing.title ILIKE :likeQuery THEN 10 
+            WHEN REGEXP_REPLACE(listing.title, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery THEN 9.5
             WHEN carDetail.model ILIKE :likeQuery THEN 9
+            WHEN REGEXP_REPLACE(carDetail.model, '[^a-zA-Z0-9]', '', 'g') ILIKE :normalizedQuery THEN 8.5
             WHEN carDetail.make ILIKE :likeQuery THEN 8
             ELSE 0 
           END + 
@@ -187,13 +204,11 @@ export class SearchService {
         )`, 'relevance_score');
         
         queryBuilder.orderBy('relevance_score', 'DESC');
-        // Sort phụ để đảm bảo tính ổn định (xe mới hơn cùng điểm sẽ lên trên)
         queryBuilder.addOrderBy('listing.createdAt', 'DESC');
       }
     }
 
-    // 2. Xử lý các bộ lọc cụ thể (Specific Filters) - Dùng Exact Match (LOWER = LOWER)
-    // Lý do: Khi user chọn dropdown "Toyota", họ muốn chính xác Toyota.
+    // 2. Xử lý các bộ lọc cụ thể (Specific Filters)
     if (make && make.trim()) {
       queryBuilder.andWhere('LOWER(carDetail.make) = LOWER(:make)', {
         make: make.trim(),
@@ -237,7 +252,7 @@ export class SearchService {
       queryBuilder.andWhere('carDetail.condition = :condition', { condition: condition.trim() });
     }
 
-    // Location Filters (Dùng ILIKE để tìm gần đúng địa danh)
+    // Location Filters
     if (country && country.trim()) {
       queryBuilder.andWhere('listing.country ILIKE :country', { country: `%${country.trim()}%` });
     }
@@ -254,7 +269,7 @@ export class SearchService {
       );
     }
 
-    // 3. Sorting Logic (Chỉ chạy nếu KHÔNG dùng Relevance Sort)
+    // 3. Sorting Logic
     if (!shouldUseRelevanceSort) {
        const validSortFields = [
         'createdAt',
@@ -271,7 +286,6 @@ export class SearchService {
        } else {
          queryBuilder.orderBy(`listing.${sortField}`, validSortOrder);
        }
-       // Luôn add secondary sort bằng ID để danh sách ổn định khi phân trang
        queryBuilder.addOrderBy('listing.id', 'ASC');
     }
 
