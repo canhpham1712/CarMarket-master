@@ -21,7 +21,9 @@ CREATE INDEX IF NOT EXISTS idx_phone_otp_expires ON phone_verification_otps("exp
 
 -- Grant permissions to carmarket_user
 GRANT ALL PRIVILEGES ON TABLE phone_verification_otps TO carmarket_user;
-GRANT USAGE, SELECT ON SEQUENCE phone_verification_otps_id_seq TO carmarket_user;
+
+-- This one is not used in the project
+-- GRANT USAGE, SELECT ON SEQUENCE phone_verification_otps_id_seq TO carmarket_user;
 
 -- Add comment
 COMMENT ON TABLE phone_verification_otps IS 'Stores OTP codes for phone number verification. OTP codes are hashed using bcrypt for security.';
