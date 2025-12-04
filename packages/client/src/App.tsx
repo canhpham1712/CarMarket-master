@@ -35,6 +35,7 @@ import { SocketProvider } from "./contexts/SocketContext";
 import { AssistantProvider } from "./contexts/AssistantContext";
 import { useAuthStore } from "./store/auth";
 import { useEffect } from "react";
+import ScrollToTop from "./components/ScrollToTop";
 
 function App() {
   const initialize = useAuthStore((state) => state.initialize);
@@ -59,6 +60,7 @@ function App() {
     <NotificationProvider>
       <SocketProvider>
         <Router>
+          <ScrollToTop />
           <AssistantProvider>
             <div className="min-h-screen bg-gray-50">
               <Routes>
