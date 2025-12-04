@@ -87,7 +87,7 @@ export class User {
   })
   provider!: OAuthProvider;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ name: "provider_id", type: 'varchar', length: 255, nullable: true })
   providerId!: string;
 
   @CreateDateColumn()

@@ -13,6 +13,7 @@ import { Favorite } from '../entities/favorite.entity';
 import { ChatConversation } from '../entities/chat-conversation.entity';
 import { ChatMessage } from '../entities/chat-message.entity';
 import { ListingPendingChanges } from '../entities/listing-pending-changes.entity';
+import { ListingPromotion } from '../entities/listing-promotion.entity';
 import { ActivityLog } from '../entities/activity-log.entity';
 import { FAQ } from '../entities/faq.entity';
 import { Permission } from '../entities/permission.entity';
@@ -58,6 +59,7 @@ export const AppDataSource = new DataSource({
     ChatConversation,
     ChatMessage,
     ListingPendingChanges,
+    ListingPromotion,
     ActivityLog,
     FAQ,
     Permission,
