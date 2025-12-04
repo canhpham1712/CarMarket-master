@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "./ui/Dialog";
-import { formatPrice, formatNumber, handleImageError, CAR_PLACEHOLDER_IMAGE } from "../lib/utils";
+import { handleImageError, CAR_PLACEHOLDER_IMAGE } from "../lib/utils";
 import { FavoritesService } from "../services/favorites.service";
 import { ChatService } from "../services/chat.service";
 import { useAuthStore } from "../store/auth";
@@ -35,6 +35,7 @@ interface CarCardProps {
   onFavoriteChange?: (listingId: string, isFavorite: boolean) => void;
   onPromote?: () => void;
   promotion?: ListingPromotion;
+  compact?: boolean;
 }
 
 export function CarCard({
@@ -46,6 +47,7 @@ export function CarCard({
   onFavoriteChange,
   onPromote,
   promotion,
+  compact,
 }: CarCardProps) {
   const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
@@ -54,11 +56,16 @@ export function CarCard({
   const [showPhoneNumber, setShowPhoneNumber] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(listing.favoriteCount);
 
+  // Helper để format số: ép kiểu về số, ngăn cách dấu phẩy, không lấy số thập phân
+  const formatInteger = (value: number | string | undefined) => {
+    if (value === undefined || value === null) return "0";
+    return Number(value).toLocaleString("en-US", { maximumFractionDigits: 0 });
+  };
+
   const primaryImage =
     listing.carDetail.images.find((img) => img.isPrimary) ||
     listing.carDetail.images[0];
 
-  // Check if listing is favorited and sync favoriteCount
   useEffect(() => {
     setFavoriteCount(listing.favoriteCount);
     if (isAuthenticated && user) {
@@ -103,7 +110,6 @@ export function CarCard({
         onFavoriteChange?.(listing.id, true);
       }
     } catch (error: any) {
-      // Revert state on error
       setIsFavorite(previousState);
       const errorMessage =
         error.response?.data?.message || "Failed to update favorites";
@@ -153,13 +159,10 @@ export function CarCard({
     setIsLoading(true);
     try {
       const response = await ChatService.startConversation(listing.id);
-
       toast.success("Conversation started! Check your messages.");
-      // Navigate to chat page or open chat modal
       window.location.href = `/chat/${response.conversation.id}`;
     } catch (error: any) {
       console.error("Failed to start conversation:", error);
-
       const errorMessage =
         error.response?.data?.message || "Failed to start conversation";
       toast.error(errorMessage);
@@ -173,11 +176,9 @@ export function CarCard({
       <Link to={`/cars/${listing.id}`}>
         {/* Image */}
         <div className="relative h-48 overflow-hidden flex-shrink-0">
-          {/* Diagonal SOLD tag for sold listings - only on image */}
           {listing.status === "sold" && (
             <div className="absolute inset-0 z-10 pointer-events-none">
               <div className="absolute inset-0 bg-gray-800/50 flex items-center justify-center">
-                {" "}
                 <div className="text-white text-2xl font-bold transform rotate-45 tracking-wider">
                   SOLD
                 </div>
@@ -227,7 +228,6 @@ export function CarCard({
             )}
           </div>
 
-          {/* Promotion Badge */}
           {promotion && promotion.status === "active" && (
             <PromotionBadge promotion={promotion} />
           )}
@@ -235,7 +235,7 @@ export function CarCard({
           {/* View Count */}
           <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs flex items-center">
             <Eye className="w-3 h-3 mr-1" />
-            {formatNumber(listing.viewCount)}
+            {formatInteger(listing.viewCount)}
           </div>
         </div>
       </Link>
@@ -271,7 +271,8 @@ export function CarCard({
             <div className="flex items-center">
               <Car className="w-4 h-4 mr-2" />
               {listing.carDetail.year} •{" "}
-              {formatNumber(listing.carDetail.mileage)} miles
+              {/* SỬA: Dùng formatInteger để làm tròn và thêm dấu phẩy */}
+              {formatInteger(listing.carDetail.mileage)} miles
             </div>
             <div className="flex items-center">
               <Fuel className="w-4 h-4 mr-2" />
@@ -289,8 +290,9 @@ export function CarCard({
 
           {/* Price */}
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <div className="text-2xl font-bold text-blue-600">
-              {formatPrice(listing.price)}
+            <div className="text-2xl font-bold text-black">
+              {/* SỬA: Ép kiểu Number và formatInteger */}
+              ${formatInteger(listing.price)}
             </div>
             {listing.priceType !== "fixed" && (
               <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
@@ -305,17 +307,17 @@ export function CarCard({
             <div className="flex items-center space-x-3">
               <div className="flex items-center">
                 <Heart className="w-3 h-3 mr-1" />
-                {favoriteCount}
+                {formatInteger(favoriteCount)}
               </div>
               <div className="flex items-center">
                 <Eye className="w-3 h-3 mr-1" />
-                {listing.viewCount}
+                {formatInteger(listing.viewCount)}
               </div>
             </div>
           </div>
         </Link>
 
-        {/* Action Buttons for All Users */}
+        {/* Action Buttons */}
         {!showActions &&
           user?.id !== listing.seller.id &&
           listing.status !== "sold" && (
@@ -327,11 +329,14 @@ export function CarCard({
                   onClick={handleToggleFavorite}
                   disabled={isLoading}
                   className={`flex-1 ${isFavorite ? "text-red-500 border-red-500 hover:bg-red-50" : ""}`}
+                  title={isFavorite ? "Remove from favorites" : "Save to favorites"}
                 >
                   <Heart
-                    className={`w-4 h-4 mr-1 ${isFavorite ? "fill-current text-red-500" : "text-gray-400"}`}
+                    className={`w-4 h-4 ${!compact ? "mr-1" : ""} ${
+                      isFavorite ? "fill-current text-red-500" : "text-gray-400"
+                    }`}
                   />
-                  {isFavorite ? "Remove" : "Save"}
+                  {!compact && (isFavorite ? "Remove" : "Save")}
                 </Button>
               )}
               <Button
@@ -342,16 +347,16 @@ export function CarCard({
                 className="flex-1"
               >
                 <Phone className="w-4 h-4 mr-1" />
-                Contact Seller
+                {!compact && <span>Contact Seller</span>}
               </Button>
               <Button
                 size="sm"
-                className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                className="flex-1 bg-black text-white hover:bg-gray-700"
                 onClick={handleSendMessage}
                 disabled={isLoading}
               >
                 <MessageCircle className="w-4 h-4 mr-1" />
-                Message
+                {!compact && <span>Message</span>}
               </Button>
             </div>
           )}
@@ -403,16 +408,16 @@ export function CarCard({
                         Promote
                       </Button>
                     )}
-                  <Button
-                    size="sm"
-                    className="flex-1 bg-green-600 text-white hover:bg-green-700"
-                    onClick={(e: React.MouseEvent) => {
-                      e.preventDefault();
-                      onMarkAsSold?.(listing);
-                    }}
-                  >
-                    Mark as Sold
-                  </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-green-600 text-white hover:bg-green-700"
+                      onClick={(e: React.MouseEvent) => {
+                        e.preventDefault();
+                        onMarkAsSold?.(listing);
+                      }}
+                    >
+                      Mark as Sold
+                    </Button>
                   </>
                 )}
               </div>
@@ -421,7 +426,6 @@ export function CarCard({
         )}
       </CardContent>
 
-      {/* Phone Number Modal */}
       <Dialog open={showPhoneNumber} onOpenChange={setShowPhoneNumber}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -453,7 +457,7 @@ export function CarCard({
                 window.open(`tel:${listing.seller.phoneNumber}`);
                 setShowPhoneNumber(false);
               }}
-              className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+              className="flex-1 bg-black text-white hover:bg-gray-500"
             >
               Call Now
             </Button>
