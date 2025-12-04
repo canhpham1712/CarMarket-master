@@ -113,7 +113,7 @@ CREATE TABLE car_details (
     condition VARCHAR(50) NOT NULL CHECK (condition IN (
         'excellent', 'very_good', 'good', 'fair', 'poor'
     )),
-    vin VARCHAR(17),
+    vin VARCHAR(20),
     "registrationNumber" VARCHAR(50),
     "previousOwners" INTEGER,
     "hasAccidentHistory" BOOLEAN DEFAULT false,

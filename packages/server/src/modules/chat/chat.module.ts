@@ -25,7 +25,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
         }
         return {
           secret,
-          signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d') },
+          signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d') as any },
         };
       },
       inject: [ConfigService],

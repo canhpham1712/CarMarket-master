@@ -116,16 +116,16 @@ BEGIN
             selected_make,
             selected_model,
             car_year,
-            selected_body_type::car_details_bodytype_enum,
-            selected_fuel_type::car_details_fueltype_enum,
-            selected_transmission::car_details_transmission_enum,
+            selected_body_type, -- ::car_details_bodytype_enum,
+            selected_fuel_type, -- ::car_details_fueltype_enum,
+            selected_transmission, -- ::car_details_transmission_enum,
             engine_size,
             engine_power,
             mileage,
             selected_color,
             doors,
             seats,
-            selected_condition::car_details_condition_enum,
+            selected_condition, -- ::car_details_condition_enum,
             'VIN' || lpad(i::text, 6, '0'),
             'REG' || lpad(i::text, 6, '0'),
             owners,
@@ -155,8 +155,9 @@ BEGIN
             'Previous owners: ' || owners || '. ' ||
             CASE WHEN random() < 0.2 THEN 'Có lịch sử tai nạn nhẹ.' ELSE '' END,
             price,
-            selected_price_type::listing_details_pricetype_enum,
-            CASE WHEN random() < 0.8 THEN 'approved'::listing_details_status_enum ELSE 'pending'::listing_details_status_enum END, -- 80% approved
+            selected_price_type, -- ::listing_details_pricetype_enum,
+            -- CASE WHEN random() < 0.8 THEN 'approved'::listing_details_status_enum ELSE 'pending'::listing_details_status_enum END, -- 80% approved
+            CASE WHEN random() < 0.8 THEN 'approved' ELSE 'pending' END, -- 80% approved
             selected_city || ', Vietnam',
             selected_city,
             'Vietnam',

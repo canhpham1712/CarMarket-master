@@ -15,31 +15,37 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { RequirePermission } from '../../common/decorators/permission.decorator';
 import { MetadataType } from '../../entities/car-metadata.entity';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('metadata')
 export class MetadataController {
   constructor(private readonly metadataService: MetadataService) {}
 
+  @Public()
   @Get('makes')
   getAllMakes() {
     return this.metadataService.getAllMakes();
   }
 
+  @Public()
   @Get('makes/:makeId/models')
   getModelsByMake(@Param('makeId') makeId: string) {
     return this.metadataService.getModelsByMake(makeId);
   }
 
+  @Public()
   @Get('makes-with-models')
   getMakesWithModels() {
     return this.metadataService.getCarMakesWithModels();
   }
 
+  @Public()
   @Get('fuel-types')
   getFuelTypes() {
     return this.metadataService.getMetadataByType(MetadataType.FUEL_TYPE);
   }
 
+  @Public()
   @Get('transmission-types')
   getTransmissionTypes() {
     return this.metadataService.getMetadataByType(
@@ -47,31 +53,37 @@ export class MetadataController {
     );
   }
 
+  @Public()
   @Get('body-types')
   getBodyTypes() {
     return this.metadataService.getMetadataByType(MetadataType.BODY_TYPE);
   }
 
+  @Public()
   @Get('conditions')
   getConditions() {
     return this.metadataService.getMetadataByType(MetadataType.CONDITION);
   }
 
+  @Public()
   @Get('price-types')
   getPriceTypes() {
     return this.metadataService.getMetadataByType(MetadataType.PRICE_TYPE);
   }
 
+  @Public()
   @Get('car-features')
   getCarFeatures() {
     return this.metadataService.getMetadataByType(MetadataType.CAR_FEATURE);
   }
 
+  @Public()
   @Get('colors')
   getColors() {
     return this.metadataService.getMetadataByType(MetadataType.COLOR);
   }
 
+  @Public()
   @Get('all')
   getAllMetadata() {
     return this.metadataService.getAllMetadata();

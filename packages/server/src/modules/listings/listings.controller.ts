@@ -30,6 +30,7 @@ import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { RequireResource, RequireOwnership } from '../../common/decorators/resource.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Listings')
 @Controller('listings')
@@ -47,6 +48,7 @@ export class ListingsController {
   }
 
   // Public endpoints - no permission required
+  @Public()
   @Get()
   findAll(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
@@ -55,6 +57,7 @@ export class ListingsController {
     return this.listingsService.findAll(page, limit);
   }
 
+  @Public()
   @Get('search/nearby')
   @ApiOperation({ summary: 'Find listings within a radius of a location' })
   @ApiResponse({ status: 200, description: 'Listings found successfully' })
@@ -76,6 +79,7 @@ export class ListingsController {
     return this.listingsService.findNearby(latitude, longitude, radius, page, limit);
   }
 
+  @Public()
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   findOne(
