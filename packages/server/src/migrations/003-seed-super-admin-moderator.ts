@@ -4,6 +4,23 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
   name = 'SeedSuperAdminAndModerator1700000000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+
+    // ========================================
+    // BƯỚC 0: ĐẢM BẢO ROLES TỒN TẠI (Fix lỗi Role not found)
+    // ========================================
+    await queryRunner.query(`
+      INSERT INTO roles (id, name, description, "isSystem", priority, "createdAt", "updatedAt")
+      VALUES 
+        (uuid_generate_v4(), 'super_admin', 'Super Administrator', true, 100, NOW(), NOW()),
+        (uuid_generate_v4(), 'admin', 'Administrator', true, 80, NOW(), NOW()),
+        (uuid_generate_v4(), 'moderator', 'Content Moderator', true, 60, NOW(), NOW()),
+        (uuid_generate_v4(), 'seller', 'Seller', true, 40, NOW(), NOW()),
+        (uuid_generate_v4(), 'buyer', 'Buyer', true, 20, NOW(), NOW()),
+        (uuid_generate_v4(), 'user', 'Standard User', false, 1, NOW(), NOW())
+      ON CONFLICT (name) DO NOTHING;
+    `);
+
+
     // ========================================
     // Step 1: Create or update Super Admin user
     // ========================================
