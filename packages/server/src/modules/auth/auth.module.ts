@@ -25,7 +25,7 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
         return {
           secret,
           signOptions: {
-            expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d'),
+            expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d') as any,
           },
         };
       },
