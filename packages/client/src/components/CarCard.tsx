@@ -172,7 +172,9 @@ export function CarCard({
   };
 
   return (
-    <Card className="hover:shadow-lg transition-shadow duration-200 overflow-hidden relative flex flex-col h-full">
+    // THAY ĐỔI Ở ĐÂY: Sử dụng arbitrary value shadow để tạo hiệu ứng bóng đều 4 góc
+    // 0_0_20px_rgba(0,0,0,0.15) có nghĩa là: x-offset 0, y-offset 0, blur 20px, màu đen độ trong suốt 0.15
+    <Card className="hover:shadow-[0_0_40px_rgba(0,0,0,0.15)] transition-shadow duration-300 overflow-hidden relative flex flex-col h-full">
       <Link to={`/cars/${listing.id}`}>
         {/* Image */}
         <div className="relative h-48 overflow-hidden flex-shrink-0">
@@ -244,7 +246,7 @@ export function CarCard({
         <Link to={`/cars/${listing.id}`} className="flex flex-col flex-1">
           {/* Title */}
           <div className="mb-2 flex-shrink-0">
-            <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 hover:text-blue-600 transition-colors">
+            <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 hover:text-gray-500 transition-colors">
               {listing.title}
             </h3>
             {listing.status === "sold" && (
@@ -437,7 +439,7 @@ export function CarCard({
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-center space-x-2">
-                <Phone className="w-5 h-5 text-blue-600" />
+                <Phone className="w-5 h-5 text-black" />
                 <span className="text-xl font-mono font-semibold text-gray-900">
                   {listing.seller.phoneNumber}
                 </span>

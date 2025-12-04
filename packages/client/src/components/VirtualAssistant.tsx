@@ -76,9 +76,6 @@ export function VirtualAssistant() {
       } else if (action.action === "view_conversations") {
         navigate("/conversations");
       }
-      
-      // Optionally close assistant after navigation
-      // toggleAssistant();
     }, 100);
   };
 
@@ -94,11 +91,10 @@ export function VirtualAssistant() {
     return (
       <button
         onClick={toggleAssistant}
-        className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300"
-        aria-label="Open virtual assistant"
+        className="fixed bottom-6 right-6 z-50 bg-black hover:bg-gray-800 text-white rounded-full p-4 shadow-lg hover:shadow-2xl hover:shadow-gray-900/50 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-gray-300"aria-label="Open virtual assistant"
       >
         {totalBadgeCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[24px] h-6 px-1.5 flex items-center justify-center animate-pulse shadow-lg ring-2 ring-white">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-black text-xs font-bold rounded-full min-w-[24px] h-6 px-1.5 flex items-center justify-center animate-pulse shadow-lg ring-2 ring-black">
             {totalBadgeCount > 99 ? '99+' : totalBadgeCount}
           </span>
         )}
@@ -121,13 +117,14 @@ export function VirtualAssistant() {
 
   return (
     <div
+      // THAY ĐỔI: Thêm `border-2 border-black` để tạo viền đen rõ ràng cho modal
       className={`fixed bottom-6 right-6 z-50 bg-white rounded-2xl shadow-2xl transition-all duration-300 ${
         isMinimized ? "w-80 h-16" : "w-96 h-[600px]"
-      } flex flex-col`}
+      } flex flex-col border-2 border-black`}
       style={{ maxHeight: "calc(100vh - 100px)" }}
     >
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="bg-black text-white px-4 py-3 rounded-t-xl flex items-center justify-between shadow-md">
         <div className="flex items-center space-x-3">
           <div className="relative">
             <div className="bg-white/20 rounded-full p-2">
@@ -140,11 +137,11 @@ export function VirtualAssistant() {
                 <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
               </svg>
             </div>
-            <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-400 ring-2 ring-white" />
+            <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-black" />
           </div>
           <div>
             <h3 className="font-semibold text-sm">CarMarket Assistant</h3>
-            <p className="text-xs text-blue-100">Always here to help</p>
+            <p className="text-xs text-gray-400">Always here to help</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
@@ -232,8 +229,8 @@ export function VirtualAssistant() {
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                     message.sender === "user"
-                      ? "bg-blue-600 text-white"
-                      : "bg-white text-gray-800 shadow-sm border border-gray-100"
+                      ? "bg-black text-white"
+                      : "bg-white text-gray-800 shadow-sm border border-gray-200"
                   }`}
                 >
                   <p className="text-sm whitespace-pre-wrap break-words">
@@ -247,7 +244,7 @@ export function VirtualAssistant() {
                         <button
                           key={idx}
                           onClick={() => handleAction(action)}
-                          className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm hover:shadow-md"
+                          className="bg-gray-900 hover:bg-black active:bg-gray-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-400 shadow-sm hover:shadow-md"
                         >
                           {action.label}
                         </button>
@@ -258,7 +255,7 @@ export function VirtualAssistant() {
                   <p
                     className={`text-xs mt-1 ${
                       message.sender === "user"
-                        ? "text-blue-100"
+                        ? "text-gray-400"
                         : "text-gray-400"
                     }`}
                   >
@@ -272,9 +269,9 @@ export function VirtualAssistant() {
               <div className="flex justify-start">
                 <div className="bg-white text-gray-800 rounded-2xl px-4 py-3 shadow-sm border border-gray-100">
                   <div className="flex space-x-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
                 </div>
               </div>
@@ -284,7 +281,8 @@ export function VirtualAssistant() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-200 p-4 bg-white rounded-b-2xl">
+          {/* THAY ĐỔI: `border-gray-200` -> `border-black` để khớp với viền ngoài */}
+          <div className="border-t border-black p-4 bg-white rounded-b-xl">
             <div className="flex items-end space-x-2">
               <input
                 ref={inputRef}
@@ -293,13 +291,13 @@ export function VirtualAssistant() {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask me anything..."
-                className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none"
+                className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-sm resize-none"
                 disabled={isTyping}
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim() || isTyping}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl p-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-black hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl p-2.5 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
                 aria-label="Send message"
               >
                 <svg
@@ -326,4 +324,3 @@ export function VirtualAssistant() {
     </div>
   );
 }
-
