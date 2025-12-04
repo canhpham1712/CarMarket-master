@@ -23,6 +23,7 @@ export interface ChatConversation {
   lastMessageAt?: string;
   isBuyerTyping: boolean;
   isSellerTyping: boolean;
+  unreadCount?: number; // Number of unread messages from the other user
   buyer: {
     id: string;
     firstName: string;

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, MoreThan } from 'typeorm';
 import { Permission } from '../../entities/permission.entity';
 import { Role } from '../../entities/role.entity';
 import { UserRole } from '../../entities/user-role.entity';
@@ -23,12 +23,22 @@ export class PermissionService {
    * Get all permissions for a user (from roles and direct permissions)
    */
   async getUserPermissions(userId: string): Promise<Permission[]> {
+    // Get roles that are either:
+    // 1. Have no expiration date (expiresAt is null)
+    // 2. Have expiration date in the future
     const userRoles = await this.userRoleRepository.find({
-      where: {
-        userId,
-        isActive: true,
-        expiresAt: IsNull(), // Not expired
-      },
+      where: [
+        {
+          userId,
+          isActive: true,
+          expiresAt: IsNull(),
+        },
+        {
+          userId,
+          isActive: true,
+          expiresAt: MoreThan(new Date()),
+        },
+      ],
       relations: ['role', 'role.permissions'],
     });
 
@@ -107,12 +117,22 @@ export class PermissionService {
    * Get all roles for a user
    */
   async getUserRoles(userId: string): Promise<Role[]> {
+    // Get roles that are either:
+    // 1. Have no expiration date (expiresAt is null)
+    // 2. Have expiration date in the future
     const userRoles = await this.userRoleRepository.find({
-      where: {
-        userId,
-        isActive: true,
-        expiresAt: IsNull(),
-      },
+      where: [
+        {
+          userId,
+          isActive: true,
+          expiresAt: IsNull(),
+        },
+        {
+          userId,
+          isActive: true,
+          expiresAt: MoreThan(new Date()),
+        },
+      ],
       relations: ['role'],
     });
 

@@ -198,6 +198,12 @@ class SocketService {
     this.socket.on("testResponse", () => {
       // Test response received
     });
+
+    // Listen for force logout event (when admin revokes a role)
+    this.socket.on("forceLogout", (data: { reason?: string; timestamp?: string }) => {
+      console.log("Force logout event received:", data);
+      this.emit("forceLogout", data);
+    });
   }
 
   private setupCommentsEventListeners() {

@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PermissionGate } from "../components/PermissionGate";
-import { usePermissions } from "../hooks/usePermissions";
 import {
   Users,
   Car,
@@ -64,10 +63,10 @@ import LogManagementPage from "./LogManagementPage";
 import { RbacManagement } from "../components/RbacManagement";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../components/ui/Select";
 import { apiClient } from "../lib/api";
-import { useAuthStore } from "../store/auth";
 import toast from "react-hot-toast";
 import { SellerVerificationService, type SellerVerification, VerificationStatus } from "../services/seller-verification.service";
 import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
+import { useAuthStore } from "../store/auth";
 
 interface Listing {
   id: string;
@@ -117,7 +116,6 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -302,8 +300,9 @@ export function EnhancedAdminDashboard() {
         // From user's listings (get from listings array if available)
         const userListings = listings.filter(l => l.seller?.id === selectedUser.id);
         userListings.forEach(listing => {
-          if (listing.updatedAt) {
-            updateDates.push(new Date(listing.updatedAt));
+          // Note: Listing interface doesn't have updatedAt, using createdAt instead
+          if (listing.createdAt) {
+            updateDates.push(new Date(listing.createdAt));
           }
         });
 
@@ -466,7 +465,7 @@ export function EnhancedAdminDashboard() {
     try {
       await SellerVerificationService.reviewVerification(id, {
         status: VerificationStatus.REJECTED,
-        rejectionReason: reason,
+        ...(reason && { rejectionReason: reason }),
       });
       toast.success("❌ Verification rejected and seller has been notified.");
       fetchPendingVerifications();
@@ -661,16 +660,6 @@ export function EnhancedAdminDashboard() {
     }
   };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "text-purple-600 bg-purple-100";
-      case "user":
-        return "text-blue-600 bg-blue-100";
-      default:
-        return "text-gray-600 bg-gray-100";
-    }
-  };
 
   // Metadata management functions
   const handleSeedData = async () => {
@@ -845,7 +834,6 @@ export function EnhancedAdminDashboard() {
 
   const handleToggleMakeStatus = async (make: any) => {
     const newStatus = !make.isActive;
-    const action = newStatus ? 'activate' : 'deactivate';
     
     // Show warning dialog when deactivating
     if (!newStatus) {
@@ -1029,7 +1017,79 @@ export function EnhancedAdminDashboard() {
     }
   };
 
+  // Get current user roles from auth store
+  const { user: currentUser } = useAuthStore();
+  const currentUserRoles = currentUser?.roles || [];
+  const isSuperAdmin = currentUserRoles.includes('super_admin');
+  const isAdminUser = currentUserRoles.includes('admin');
+  const isModerator = currentUserRoles.includes('moderator');
+
+  // Define role hierarchy (higher index = more privileges)
+  const roleHierarchy: Record<string, number> = {
+    'buyer': 1,
+    'seller': 2,
+    'moderator': 3,
+    'admin': 4,
+    'super_admin': 5,
+  };
+
+  // Get the current user's highest role priority
+  const getCurrentUserPriority = (): number => {
+    let maxPriority = 0;
+    currentUserRoles.forEach(role => {
+      const priority = roleHierarchy[role] || 0;
+      if (priority > maxPriority) {
+        maxPriority = priority;
+      }
+    });
+    return maxPriority;
+  };
+
+  // Check if current user can revoke a specific role from a target user
+  const canRevokeRole = (targetRoleName: string, targetUserRoles: any[]): boolean => {
+    // Moderators cannot revoke any roles
+    if (!isSuperAdmin && !isAdminUser) {
+      return false;
+    }
+
+    const currentPriority = getCurrentUserPriority();
+    const targetRolePriority = roleHierarchy[targetRoleName] || 0;
+
+    // Super admin can revoke any role except other super_admin's super_admin role
+    if (isSuperAdmin) {
+      // Check if target user has super_admin role
+      const targetHasSuperAdmin = targetUserRoles.some((r: any) => 
+        (r.name || getRoleName(r.id || r.roleId)) === 'super_admin'
+      );
+      // Cannot revoke super_admin from another super_admin
+      if (targetRoleName === 'super_admin' && targetHasSuperAdmin) {
+        return false;
+      }
+      return true;
+    }
+
+    // Admin can only revoke roles from lower priority users (seller, buyer, moderator)
+    if (isAdminUser) {
+      // Admin cannot revoke admin or super_admin roles
+      if (targetRolePriority >= roleHierarchy['admin']) {
+        return false;
+      }
+      return true;
+    }
+
+    return false;
+  };
+
   const removeRole = async (userId: string, roleId: string) => {
+    const roleName = getRoleName(roleId);
+    const targetUserRolesList = allUserRoles[userId] || userRoles;
+    
+    // Check if current user can revoke this role
+    if (!canRevokeRole(roleName, targetUserRolesList)) {
+      toast.error('You do not have permission to revoke this role');
+      return;
+    }
+
     try {
       await apiClient.delete('/rbac/roles/remove', {
         data: {
@@ -1038,7 +1098,7 @@ export function EnhancedAdminDashboard() {
         },
       });
 
-      toast.success('Role removed successfully');
+      toast.success(`Role "${roleName}" revoked successfully`);
       await fetchUserRoles(userId);
       
       // Update the allUserRoles state for this specific user
@@ -1049,9 +1109,10 @@ export function EnhancedAdminDashboard() {
       }));
       
       await loadUsers(); // Refresh the entire user list to show updated roles
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to remove role:', error);
-      toast.error('Failed to remove role');
+      const errorMessage = error.response?.data?.message || 'Failed to remove role';
+      toast.error(errorMessage);
     }
   };
 
@@ -1717,64 +1778,71 @@ export function EnhancedAdminDashboard() {
                                       </Button>
                                     </PermissionGate>
                                     <PermissionGate permission="user:manage">
-                                      {user.isActive && user.role !== "admin" ? (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            setSelectedUser(user);
-                                            setActionReason("");
-                                          }}
-                                          title="Deactivate user account"
-                                        >
-                                          <UserX className="h-4 w-4 text-red-600" />
-                                        </Button>
-                                      ) : user.isActive &&
-                                        user.role === "admin" ? (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          disabled
-                                          title="Cannot deactivate admin accounts"
-                                        >
-                                          <UserX className="h-4 w-4 text-gray-400" />
-                                        </Button>
-                                      ) : (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() =>
-                                          showConfirmation(
-                                            "activate",
-                                            user.id,
-                                            "Activate User",
-                                            `Are you sure you want to activate ${user.firstName} ${user.lastName}?`
-                                          )
-                                        }
-                                        title="Activate user account"
-                                      >
-                                        <UserCheck className="h-4 w-4 text-green-600" />
-                                      </Button>
-                                    )}
-                                    </PermissionGate>
-                                    <PermissionGate permission="user:manage">
-                                      {user.role === "user" && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() =>
+                                      {(() => {
+                                        const userRoles = allUserRoles[user.id] || [];
+                                        const hasAdminRole = userRoles.some((r: any) => r.name === 'admin' || r.name === 'super_admin');
+                                        return user.isActive && !hasAdminRole ? (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              setSelectedUser(user);
+                                              setActionReason("");
+                                            }}
+                                            title="Deactivate user account"
+                                          >
+                                            <UserX className="h-4 w-4 text-red-600" />
+                                          </Button>
+                                        ) : user.isActive && hasAdminRole ? (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled
+                                            title="Cannot deactivate admin accounts"
+                                          >
+                                            <UserX className="h-4 w-4 text-gray-400" />
+                                          </Button>
+                                        ) : (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
                                             showConfirmation(
-                                              "makeAdmin",
+                                              "activate",
                                               user.id,
-                                              "Promote to Admin",
-                                              `Are you sure you want to promote ${user.firstName} ${user.lastName} to admin? This action cannot be undone.`
+                                              "Activate User",
+                                              `Are you sure you want to activate ${user.firstName} ${user.lastName}?`
                                             )
                                           }
-                                          title="Promote user to admin"
+                                          title="Activate user account"
                                         >
-                                          <Shield className="h-4 w-4 text-purple-600" />
+                                          <UserCheck className="h-4 w-4 text-green-600" />
                                         </Button>
-                                      )}
+                                        );
+                                      })()}
+                                    </PermissionGate>
+                                    <PermissionGate permission="user:manage">
+                                      {(() => {
+                                        const userRoles = allUserRoles[user.id] || [];
+                                        const hasAdminRole = userRoles.some((r: any) => r.name === 'admin' || r.name === 'super_admin');
+                                        return !hasAdminRole && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              showConfirmation(
+                                                "makeAdmin",
+                                                user.id,
+                                                "Promote to Admin",
+                                                `Are you sure you want to promote ${user.firstName} ${user.lastName} to admin? This action cannot be undone.`
+                                              )
+                                            }
+                                            title="Promote user to admin"
+                                          >
+                                            <Shield className="h-4 w-4 text-purple-600" />
+                                          </Button>
+                                        );
+                                      })()}
                                     </PermissionGate>
                                     {/* RBAC Role Management */}
                                     <PermissionGate permission="user:manage">
@@ -3297,8 +3365,8 @@ export function EnhancedAdminDashboard() {
         </div>
       )}
 
-      {/* Enhanced User Details Modal */}
-      {selectedUser && (
+      {/* Enhanced User Details Modal - Only show when not in Role Assignment mode */}
+      {selectedUser && !showRoleAssignment && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
             <div className="flex justify-between items-center mb-6">
@@ -3378,12 +3446,24 @@ export function EnhancedAdminDashboard() {
                   <div className="flex items-center space-x-3">
                     <Shield className="h-5 w-5 text-gray-400" />
                     <div>
-                      <p className="text-sm text-gray-500">Role</p>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(selectedUser.role)}`}
-                      >
-                        {selectedUser.role}
-                      </span>
+                      <p className="text-sm text-gray-500">Roles</p>
+                      <div className="flex flex-wrap gap-1">
+                        {allUserRoles[selectedUser.id] && allUserRoles[selectedUser.id].length > 0 ? (
+                          allUserRoles[selectedUser.id].map((userRole: any, index: number) => {
+                            const roleName = userRole.name || userRole.role?.name;
+                            return (
+                              <span
+                                key={index}
+                                className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                              >
+                                {roleName}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="text-sm text-gray-400 italic">No roles assigned</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -3455,22 +3535,25 @@ export function EnhancedAdminDashboard() {
               <div className="border-t pt-6">
                 <h4 className="font-medium mb-4">Actions</h4>
                 <div className="flex flex-wrap gap-3">
-                  {selectedUser.isActive && selectedUser.role !== "admin" ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        showConfirmation(
-                          "deactivate",
-                          selectedUser.id,
-                          "Deactivate User",
-                          `Are you sure you want to deactivate ${selectedUser.firstName} ${selectedUser.lastName}?`
-                        )
-                      }
-                      className="flex items-center space-x-2"
-                    >
-                      <UserX className="h-4 w-4" />
-                      <span>Deactivate Account</span>
-                    </Button>
+                  {(() => {
+                    const userRoles = allUserRoles[selectedUser.id] || [];
+                    const hasAdminRole = userRoles.some((r: any) => r.name === 'admin' || r.name === 'super_admin');
+                    return selectedUser.isActive && !hasAdminRole ? (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          showConfirmation(
+                            "deactivate",
+                            selectedUser.id,
+                            "Deactivate User",
+                            `Are you sure you want to deactivate ${selectedUser.firstName} ${selectedUser.lastName}?`
+                          )
+                        }
+                        className="flex items-center space-x-2"
+                      >
+                        <UserX className="h-4 w-4" />
+                        <span>Deactivate Account</span>
+                      </Button>
                   ) : !selectedUser.isActive ? (
                     <Button
                       variant="outline"
@@ -3491,7 +3574,8 @@ export function EnhancedAdminDashboard() {
                     <div className="text-sm text-gray-500 italic">
                       Admin accounts cannot be deactivated
                     </div>
-                  )}
+                  );
+                  })()}
 
                   {(() => {
                     // Check if user already has admin role using RBAC
@@ -4236,30 +4320,84 @@ export function EnhancedAdminDashboard() {
                 />
               </div>
 
-              {/* Current User Roles */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current Roles
-                </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+              {/* Current User Roles - Revoke Section */}
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-semibold text-gray-800">
+                    Current Roles (Click X to Revoke)
+                  </label>
+                  <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                    {userRoles.length} role(s)
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
                   {userRoles.length === 0 ? (
-                    <p className="text-sm text-gray-500">No roles assigned</p>
+                    <p className="text-sm text-gray-500 italic text-center py-2">No roles assigned to this user</p>
                   ) : (
                     userRoles.map((userRole) => {
-                      const roleId = userRole.role?.id || userRole.roleId;
+                      const roleId = userRole.role?.id || userRole.roleId || userRole.id;
+                      const roleName = userRole.name || getRoleName(roleId);
+                      const canRevoke = canRevokeRole(roleName, userRoles);
+                      
                       return (
-                        <div key={userRole.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span>{getRoleName(roleId)}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeRole(selectedUser.id, roleId)}
-                          >
-                            <UserX className="w-4 h-4" />
-                          </Button>
+                        <div key={userRole.id || roleId} className="flex items-center justify-between p-2 bg-white rounded border border-gray-200 shadow-sm">
+                          <div className="flex items-center gap-2">
+                            <Shield className={`w-4 h-4 ${
+                              roleName === 'super_admin' ? 'text-purple-600' :
+                              roleName === 'admin' ? 'text-red-600' :
+                              roleName === 'moderator' ? 'text-orange-500' :
+                              roleName === 'seller' ? 'text-green-600' :
+                              'text-blue-500'
+                            }`} />
+                            <span className="font-medium">{roleName.replace('_', ' ')}</span>
+                            {!canRevoke && (isSuperAdmin || isAdminUser) && (
+                              <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">protected</span>
+                            )}
+                          </div>
+                          {canRevoke ? (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeRole(selectedUser.id, roleId)}
+                              title={`Revoke ${roleName} role`}
+                              className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 h-7"
+                            >
+                              <X className="w-3 h-3 mr-1" />
+                              Revoke
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              title={isModerator ? "Moderators cannot revoke roles" : `You cannot revoke ${roleName} role`}
+                              className="opacity-50 cursor-not-allowed h-7"
+                            >
+                              <Shield className="w-3 h-3 mr-1 text-gray-400" />
+                              Protected
+                            </Button>
+                          )}
                         </div>
                       );
                     })
+                  )}
+                </div>
+                {/* Role Revocation Info */}
+                <div className="mt-3 pt-2 border-t border-gray-200">
+                  {isModerator && (
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                      ⚠️ As a moderator, you cannot revoke user roles.
+                    </p>
+                  )}
+                  {isAdminUser && !isSuperAdmin && (
+                    <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                      ℹ️ You can revoke roles from: seller, buyer, moderator
+                    </p>
+                  )}
+                  {isSuperAdmin && (
+                    <p className="text-xs text-purple-600 bg-purple-50 p-2 rounded">
+                      ℹ️ You can revoke any role (except super_admin from other super admins)
+                    </p>
                   )}
                 </div>
               </div>
@@ -4459,30 +4597,37 @@ export function EnhancedAdminDashboard() {
                 <h3 className="text-sm font-medium text-gray-700 mb-3">Actions</h3>
                 <div className="flex gap-3">
                   <PermissionGate permission="user:manage">
-                    {selectedUser.isActive && selectedUser.role !== "admin" ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setActionReason("");
-                          showConfirmation(
-                            "deactivate",
-                            selectedUser.id,
-                            "Deactivate User",
-                            `Are you sure you want to deactivate ${selectedUser.firstName} ${selectedUser.lastName}?`
-                          );
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <UserX className="h-4 w-4" />
-                        Deactivate Account
-                      </Button>
-                    ) : null}
-                    {selectedUser.role === "user" && (
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          showConfirmation(
-                            "makeAdmin",
+                    {(() => {
+                      const userRoles = allUserRoles[selectedUser.id] || [];
+                      const hasAdminRole = userRoles.some((r: any) => r.name === 'admin' || r.name === 'super_admin');
+                      return selectedUser.isActive && !hasAdminRole ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setActionReason("");
+                            showConfirmation(
+                              "deactivate",
+                              selectedUser.id,
+                              "Deactivate User",
+                              `Are you sure you want to deactivate ${selectedUser.firstName} ${selectedUser.lastName}?`
+                            );
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <UserX className="h-4 w-4" />
+                          Deactivate Account
+                        </Button>
+                      ) : null;
+                    })()}
+                    {(() => {
+                      const userRoles = allUserRoles[selectedUser.id] || [];
+                      const hasAdminRole = userRoles.some((r: any) => r.name === 'admin' || r.name === 'super_admin');
+                      return !hasAdminRole ? (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            showConfirmation(
+                              "makeAdmin",
                             selectedUser.id,
                             "Promote to Admin",
                             `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
@@ -4493,7 +4638,8 @@ export function EnhancedAdminDashboard() {
                         <Shield className="h-4 w-4" />
                         Promote to Admin
                       </Button>
-                    )}
+                      ) : null;
+                    })()}
                   </PermissionGate>
                 </div>
               </div>

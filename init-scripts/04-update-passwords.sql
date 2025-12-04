@@ -11,7 +11,7 @@ WHERE email IN (
 );
 
 -- Verify the update
-SELECT email, role, "isEmailVerified" FROM users;
+SELECT email, "isEmailVerified" FROM users;
 
 
 

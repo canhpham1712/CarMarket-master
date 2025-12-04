@@ -6,16 +6,15 @@
 /**
  * Check if user has admin role (either legacy or RBAC)
  */
-export function isAdmin(user: { role?: string; roles?: string[] } | null | undefined): boolean {
+export function isAdmin(user: { roles?: string[] } | null | undefined): boolean {
   if (!user) return false;
 
-  // Check RBAC roles first (preferred)
+  // Check RBAC roles
   if (user.roles && Array.isArray(user.roles)) {
     return user.roles.includes('admin') || user.roles.includes('super_admin');
   }
 
-  // Fallback to legacy role
-  return user.role === 'admin';
+  return false;
 }
 
 /**
@@ -29,7 +28,7 @@ export function hasRole(user: { roles?: string[] } | null | undefined, roleNames
 /**
  * Get user's primary role (highest priority role)
  */
-export function getPrimaryRole(user: { role?: string; roles?: string[] } | null | undefined): string | null {
+export function getPrimaryRole(user: { roles?: string[] } | null | undefined): string | null {
   if (!user) return null;
 
   // Priority order for RBAC roles
@@ -51,7 +50,6 @@ export function getPrimaryRole(user: { role?: string; roles?: string[] } | null 
     return sortedRoles[0];
   }
 
-  // Fallback to legacy role
-  return user.role || null;
+  return null;
 }
 

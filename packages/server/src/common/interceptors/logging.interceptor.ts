@@ -184,7 +184,6 @@ export class LoggingInterceptor implements NestInterceptor {
       userAgent,
       userId: user?.id,
       userEmail: user?.email,
-      userRole: user?.role,
     };
   }
 

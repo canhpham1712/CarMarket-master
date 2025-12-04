@@ -11,7 +11,8 @@ import { Card, CardContent } from "../components/ui/Card";
 import { Avatar } from "../components/ui/Avatar";
 import { ChatService } from "../services/chat.service";
 import { useAuthStore } from "../store/auth";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../hooks/useNotifications";
+import { socketService } from "../services/socket.service";
 import toast from "react-hot-toast";
 import type { ChatConversation } from "../services/chat.service";
 
@@ -49,13 +50,42 @@ export function ConversationsListPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchConversations();
-      // Clear unread count when viewing conversations
-      clearChatUnreadCount();
+      // Don't clear unread count here - it should only be cleared when user actually views the conversation
+      // The unread count will be updated when messages are marked as read in ChatPage
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, pagination.page, pagination.limit]);
+
+  // Listen for new messages and conversation updates to refresh conversations list and update unread counts
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubscribeNewMessage = socketService.on("newMessage", (data: any) => {
+      // Refresh conversations to update unread counts when new message arrives
+      fetchConversations();
+    });
+
+    const unsubscribeConversationUpdated = socketService.on(
+      "conversationUpdated",
+      () => {
+        // Refresh conversations when conversation is updated (e.g., last message changed, messages marked as read)
+        fetchConversations();
+      }
+    );
+
+    const unsubscribeMessagesRead = socketService.on("messagesRead", () => {
+      // Refresh conversations when messages are marked as read
+      fetchConversations();
+    });
+
+    return () => {
+      unsubscribeNewMessage();
+      unsubscribeConversationUpdated();
+      unsubscribeMessagesRead();
+    };
+  }, [isAuthenticated]);
 
   const formatRelativeTime = (dateString: string) => {
     try {
@@ -224,10 +254,14 @@ export function ConversationsListPage() {
                         </p>
                       </div>
 
-                      {/* Unread indicator */}
-                      <div className="flex-shrink-0">
-                        <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                      </div>
+                      {/* Unread count badge - only show if there are unread messages */}
+                      {(conversation.unreadCount ?? 0) > 0 && (
+                        <div className="flex-shrink-0">
+                          <span className="flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full bg-red-500 text-white text-xs font-bold">
+                            {conversation.unreadCount! > 99 ? "99+" : conversation.unreadCount}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

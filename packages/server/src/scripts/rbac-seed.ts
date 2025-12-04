@@ -78,7 +78,6 @@ export class RbacSeed {
       // Dashboard permissions
       { name: 'dashboard:admin', description: 'Access admin dashboard', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
       { name: 'dashboard:seller', description: 'Access seller dashboard', action: PermissionAction.READ, resource: PermissionResource.USER },
-      { name: 'dashboard:buyer', description: 'Access buyer dashboard', action: PermissionAction.READ, resource: PermissionResource.USER },
 
       // Monitoring permissions
       { name: 'monitoring:view', description: 'View system monitoring and real-time metrics', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
@@ -174,8 +173,7 @@ export class RbacSeed {
           p.name.startsWith('assistant:use') ||
           p.name === 'user:read' ||
           p.name === 'user:update' ||
-          p.name === 'analytics:view' ||
-          p.name === 'dashboard:buyer'
+          p.name === 'analytics:view'
         ),
       },
     ];
@@ -219,17 +217,12 @@ export class RbacSeed {
       });
 
       if (existingRoles.length > 0) {
-        continue; // User already migrated
+        continue; // User already has RBAC roles assigned
       }
 
-      // Determine role based on legacy role
-      let roleName: string;
-      if (user.role === 'admin') {
-        roleName = 'admin';
-      } else {
-        roleName = 'buyer'; // Default for regular users
-      }
-
+      // Assign default 'buyer' role to users without roles
+      // Admin roles should be assigned through RBAC management interface
+      const roleName = 'buyer';
       const role = roles.find(r => r.name === roleName);
       if (!role) {
         console.warn(`Role ${roleName} not found for user ${user.id}`);

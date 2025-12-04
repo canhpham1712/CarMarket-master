@@ -24,6 +24,8 @@ import { ListingComment } from '../entities/listing-comment.entity';
 import { CommentReaction } from '../entities/comment-reaction.entity';
 import { CommentReport } from '../entities/comment-report.entity';
 import { Notification } from '../entities/notification.entity';
+import { NotificationPreference } from '../entities/notification-preference.entity';
+import { NotificationDeliveryLog } from '../entities/notification-delivery-log.entity';
 import { SellerRating } from '../entities/seller-rating.entity';
 import { UserRecommendation } from '../entities/user-recommendation.entity';
 import { UserSearchHistory } from '../entities/user-search-history.entity';
@@ -33,6 +35,8 @@ import { SellerVerificationDocument } from '../entities/seller-verification-docu
 import { PhoneVerificationOtp } from '../entities/phone-verification-otp.entity';
 import { ListingPromotion } from '../entities/listing-promotion.entity';
 import { PromotionPricing } from '../entities/promotion-pricing.entity';
+import { CarValuationMetadata } from '../entities/car-valuation-metadata.entity';
+import { UserSettings } from '../entities/user-settings.entity';
 
 @Injectable()
 export class DatabaseConfig implements TypeOrmOptionsFactory {
@@ -80,6 +84,8 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         CommentReaction,
         CommentReport,
         Notification,
+        NotificationPreference,
+        NotificationDeliveryLog,
         SellerRating,
         UserRecommendation,
         UserSearchHistory,
@@ -89,6 +95,8 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         PhoneVerificationOtp,
         ListingPromotion,
         PromotionPricing,
+        CarValuationMetadata,
+        UserSettings,
       ],
       synchronize: false,
       migrationsRun: false, // Disabled: Run migrations manually using SQL script

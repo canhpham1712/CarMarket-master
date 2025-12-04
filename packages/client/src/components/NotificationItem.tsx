@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Bell,
   Car,
+  Shield,
 } from "lucide-react";
 import { type Notification, NotificationType } from "../services/notification.service";
 
@@ -31,6 +32,8 @@ const getNotificationIcon = (type: NotificationType) => {
       return <AlertCircle className="h-5 w-5 text-yellow-600" />;
     case NotificationType.COMMENT_REPORTED:
       return <AlertCircle className="h-5 w-5 text-orange-600" />;
+    case NotificationType.ROLE_ASSIGNED:
+      return <Shield className="h-5 w-5 text-indigo-600" />;
     case NotificationType.SYSTEM:
       return <Bell className="h-5 w-5 text-gray-600" />;
     default:

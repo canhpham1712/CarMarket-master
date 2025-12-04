@@ -621,12 +621,14 @@ const LogManagementPage = () => {
                                             📞 {selectedLog.user.phoneNumber}
                                           </p>
                                         )}
-                                        <p className="text-xs text-gray-500">
-                                          Role:{" "}
-                                          <span className="font-medium">
-                                            {selectedLog.user.role}
-                                          </span>
-                                        </p>
+                                        {selectedLog.user.roles && selectedLog.user.roles.length > 0 && (
+                                          <p className="text-xs text-gray-500">
+                                            Roles:{" "}
+                                            <span className="font-medium">
+                                              {selectedLog.user.roles.join(', ')}
+                                            </span>
+                                          </p>
+                                        )}
                                       </div>
                                     ) : (
                                       <p className="text-sm text-gray-500 italic">

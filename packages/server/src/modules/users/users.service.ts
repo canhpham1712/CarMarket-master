@@ -42,7 +42,6 @@ export class UsersService {
         'bio',
         'location',
         'dateOfBirth',
-        'role',
         'isActive',
         'isEmailVerified',
         'createdAt',

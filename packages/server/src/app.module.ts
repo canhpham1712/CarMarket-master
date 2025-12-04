@@ -25,7 +25,9 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { GeocodingModule } from './modules/geocoding/geocoding.module';
 import { SellerVerificationModule } from './modules/seller-verification/seller-verification.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { ValuationModule } from './modules/valuation/valuation.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -60,6 +62,8 @@ import { PaymentModule } from './modules/payment/payment.module';
     SellerVerificationModule,
     PromotionsModule,
     PaymentModule,
+    ValuationModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -77,33 +77,61 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
   useEffect(() => {
     if (state.messages.length === 0) {
       (async () => {
-        const welcomeResponse = await AssistantService.getWelcomeMessage();
-        const messages: Message[] = [];
-        
-        // Add welcome message
-        messages.push({
-          id: Date.now().toString(),
-          content: welcomeResponse.message,
-          sender: "assistant",
-          timestamp: new Date(),
-          type: "text",
-          actions: welcomeResponse.actions,
-        });
-
-        // Add notification messages separately if they exist
-        if (welcomeResponse.data?.notifications && Array.isArray(welcomeResponse.data.notifications)) {
-          welcomeResponse.data.notifications.forEach((notif: any, index: number) => {
-            messages.push({
-              id: `notification-${notif.id}-${Date.now() + index}`,
-              content: `✅ ${notif.message}`,
-              sender: "assistant",
-              timestamp: new Date(notif.createdAt),
-              type: "text",
-            });
+        try {
+          const welcomeResponse = await AssistantService.getWelcomeMessage();
+          const messages: Message[] = [];
+          
+          // Add welcome message
+          messages.push({
+            id: Date.now().toString(),
+            content: welcomeResponse.message,
+            sender: "assistant",
+            timestamp: new Date(),
+            type: "text",
+            actions: welcomeResponse.actions,
           });
-        }
 
-        setState(prev => ({ ...prev, messages }));
+          // Add notification messages separately if they exist
+          if (welcomeResponse.data?.notifications && Array.isArray(welcomeResponse.data.notifications)) {
+            welcomeResponse.data.notifications.forEach((notif: any, index: number) => {
+              messages.push({
+                id: `notification-${notif.id}-${Date.now() + index}`,
+                content: `✅ ${notif.message}`,
+                sender: "assistant",
+                timestamp: new Date(notif.createdAt),
+                type: "text",
+              });
+            });
+          }
+
+          setState(prev => ({ ...prev, messages }));
+        } catch (error: any) {
+          // Handle connection errors gracefully
+          console.error("Failed to load welcome message:", error);
+          
+          // Set a default welcome message if backend is unavailable
+          const defaultMessages: Message[] = [{
+            id: Date.now().toString(),
+            content: "Hello! I'm your car marketplace assistant. How can I help you today?",
+            sender: "assistant",
+            timestamp: new Date(),
+            type: "text",
+            actions: [
+              {
+                label: "Browse Cars",
+                action: "search_listings",
+                data: {}
+              },
+              {
+                label: "My Listings",
+                action: "view_my_listings",
+                data: {}
+              }
+            ],
+          }];
+          
+          setState(prev => ({ ...prev, messages: defaultMessages }));
+        }
       })();
     }
   }, []);
@@ -238,19 +266,44 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
   }, []);
 
   const clearMessages = useCallback(async () => {
-    const welcomeResponse = await AssistantService.getWelcomeMessage();
-    const welcomeMessage: Message = {
-      id: Date.now().toString(),
-      content: welcomeResponse.message,
-      sender: "assistant",
-      timestamp: new Date(),
-      type: "text",
-    };
-    
-    setState(prev => ({
-      ...prev,
-      messages: [welcomeMessage],
-    }));
+    try {
+      const welcomeResponse = await AssistantService.getWelcomeMessage();
+      const welcomeMessage: Message = {
+        id: Date.now().toString(),
+        content: welcomeResponse.message,
+        sender: "assistant",
+        timestamp: new Date(),
+        type: "text",
+        actions: welcomeResponse.actions,
+      };
+      
+      setState(prev => ({
+        ...prev,
+        messages: [welcomeMessage],
+      }));
+    } catch (error: any) {
+      console.error("Failed to load welcome message:", error);
+      // Set default welcome message
+      const defaultMessage: Message = {
+        id: Date.now().toString(),
+        content: "Hello! I'm your car marketplace assistant. How can I help you today?",
+        sender: "assistant",
+        timestamp: new Date(),
+        type: "text",
+        actions: [
+          {
+            label: "Browse Cars",
+            action: "search_listings",
+            data: {}
+          }
+        ],
+      };
+      
+      setState(prev => ({
+        ...prev,
+        messages: [defaultMessage],
+      }));
+    }
   }, []);
 
   const markAsRead = useCallback(() => {

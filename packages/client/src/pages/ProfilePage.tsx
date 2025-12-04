@@ -14,6 +14,7 @@ import {
   X,
   User,
   Shield,
+  Eye,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -54,7 +55,17 @@ export function ProfilePage() {
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
   const [verification, setVerification] = useState<any>(null);
-  const { updateUser } = useAuthStore();
+  const { updateUser, user: authUser } = useAuthStore();
+
+  // Check user roles for button visibility
+  const userRoles = authUser?.roles || [];
+  const isSeller = userRoles.includes("seller");
+  const isAdmin = userRoles.includes("admin");
+  const isSuperAdmin = userRoles.includes("super_admin");
+  const isAdminOrSuperAdmin = isAdmin || isSuperAdmin;
+  
+  // Show verification button only for sellers or admins (for viewing purposes)
+  const showVerificationButton = isSeller || isAdminOrSuperAdmin;
 
   const {
     register,
@@ -232,16 +243,29 @@ export function ProfilePage() {
               </h2>
               <p className="text-gray-600 mb-4">{user.email}</p>
 
-              {/* Verification Link */}
-              <div className="mb-4">
-                <a
-                  href="/verify-seller"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <Shield className="w-4 h-4" />
-                  Get Verified as Seller
-                </a>
-              </div>
+              {/* Verification Link - Only show for sellers or admins */}
+              {showVerificationButton && (
+                <div className="mb-4">
+                  {isSeller ? (
+                    <a
+                      href="/verify-seller"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      <Shield className="w-4 h-4" />
+                      Get Verified as Seller
+                    </a>
+                  ) : isAdminOrSuperAdmin ? (
+                    <a
+                      href="/verify-seller"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+                      title="View only - Admin accounts cannot submit verification"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View Seller Verification
+                    </a>
+                  ) : null}
+                </div>
+              )}
 
               {user.bio && (
                 <p className="text-sm text-gray-700 mb-4 italic">

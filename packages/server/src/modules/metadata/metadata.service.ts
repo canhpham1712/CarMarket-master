@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { CarMake } from '../../entities/car-make.entity';
 import { CarModel } from '../../entities/car-model.entity';
 import { CarMetadata, MetadataType } from '../../entities/car-metadata.entity';
+import { CarValuationMetadata } from '../../entities/car-valuation-metadata.entity';
 
 @Injectable()
 export class MetadataService {
@@ -14,6 +15,8 @@ export class MetadataService {
     private readonly carModelRepository: Repository<CarModel>,
     @InjectRepository(CarMetadata)
     private readonly carMetadataRepository: Repository<CarMetadata>,
+    @InjectRepository(CarValuationMetadata)
+    private readonly carValuationMetadataRepository: Repository<CarValuationMetadata>,
   ) {}
 
   async getAllMakes() {
@@ -518,5 +521,79 @@ export class MetadataService {
       message: `Make ${isActive ? 'activated' : 'deactivated'} successfully`,
       affectedModels: !isActive ? make.models.length : 0
     };
+  }
+
+  // Valuation metadata methods
+  async getValuationMakes(): Promise<string[]> {
+    const makes = await this.carValuationMetadataRepository
+      .createQueryBuilder('v')
+      .select('DISTINCT v.make', 'make')
+      .orderBy('v.make', 'ASC')
+      .getRawMany();
+    return makes.map((m) => m.make);
+  }
+
+  async getValuationModels(make: string): Promise<string[]> {
+    const models = await this.carValuationMetadataRepository
+      .createQueryBuilder('v')
+      .select('DISTINCT v.model', 'model')
+      .where('v.make = :make', { make })
+      .orderBy('v.model', 'ASC')
+      .getRawMany();
+    return models.map((m) => m.model);
+  }
+
+  async getValuationYears(make: string, model: string): Promise<number[]> {
+    const years = await this.carValuationMetadataRepository
+      .createQueryBuilder('v')
+      .select('DISTINCT v.year', 'year')
+      .where('v.make = :make', { make })
+      .andWhere('v.model = :model', { model })
+      .orderBy('v.year', 'DESC')
+      .getRawMany();
+    return years.map((y) => y.year);
+  }
+
+  async getValuationVersions(
+    make: string,
+    model: string,
+    year: number,
+  ): Promise<string[]> {
+    const versions = await this.carValuationMetadataRepository
+      .createQueryBuilder('v')
+      .select('DISTINCT v.version', 'version')
+      .where('v.make = :make', { make })
+      .andWhere('v.model = :model', { model })
+      .andWhere('v.year = :year', { year })
+      .andWhere('v.version IS NOT NULL')
+      .orderBy('v.version', 'ASC')
+      .getRawMany();
+    return versions
+      .map((v) => v.version)
+      .filter((v) => v !== null) as string[];
+  }
+
+  async getValuationColors(
+    make: string,
+    model: string,
+    year: number,
+    version?: string,
+  ): Promise<string[]> {
+    const query = this.carValuationMetadataRepository
+      .createQueryBuilder('v')
+      .select('DISTINCT v.color', 'color')
+      .where('v.make = :make', { make })
+      .andWhere('v.model = :model', { model })
+      .andWhere('v.year = :year', { year })
+      .andWhere('v.color IS NOT NULL');
+
+    if (version) {
+      query.andWhere('v.version = :version', { version });
+    } else {
+      query.andWhere('v.version IS NULL');
+    }
+
+    const colors = await query.orderBy('v.color', 'ASC').getRawMany();
+    return colors.map((c) => c.color).filter((c) => c !== null) as string[];
   }
 }

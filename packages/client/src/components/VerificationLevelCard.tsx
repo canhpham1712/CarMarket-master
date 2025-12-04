@@ -7,9 +7,10 @@ interface VerificationLevelCardProps {
   level: VerificationLevel;
   currentLevel: VerificationLevel | null;
   currentStatus: VerificationStatus | null;
-  onGetVerified: () => void;
-  onUpgrade: () => void;
+  onGetVerified?: () => void;
+  onUpgrade?: () => void;
   onViewDetails?: () => void;
+  isViewOnly?: boolean;
 }
 
 const levelConfig = {
@@ -59,6 +60,7 @@ export function VerificationLevelCard({
   onGetVerified,
   onUpgrade,
   onViewDetails,
+  isViewOnly = false,
 }: VerificationLevelCardProps) {
   const config = levelConfig[level];
   const Icon = config.icon;
@@ -113,9 +115,15 @@ export function VerificationLevelCard({
   let buttonText = "Get Verified";
   let buttonVariant: "default" | "outline" | "ghost" = "default";
   let buttonDisabled = false;
-  let buttonAction = onGetVerified;
+  let buttonAction: (() => void) | undefined = onGetVerified;
 
-  if (isVerifiedAtThisLevel) {
+  if (isViewOnly) {
+    // View-only mode for admins - disable all actions
+    buttonText = "View Only";
+    buttonVariant = "outline";
+    buttonDisabled = true;
+    buttonAction = undefined;
+  } else if (isVerifiedAtThisLevel) {
     buttonText = "View Details";
     buttonVariant = "outline";
     buttonDisabled = false;
@@ -154,11 +162,11 @@ export function VerificationLevelCard({
         <div className="mt-auto pt-4 border-t border-gray-200">
           <Button
             onClick={buttonAction}
-            disabled={buttonDisabled}
+            disabled={buttonDisabled || !buttonAction}
             variant={buttonVariant}
             className={`w-full ${
-              buttonDisabled
-                ? ""
+              buttonDisabled || isViewOnly
+                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                 : isVerifiedAtThisLevel
                 ? "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
                 : level === VerificationLevel.BASIC
@@ -168,7 +176,7 @@ export function VerificationLevelCard({
                 : "bg-purple-600 text-white hover:bg-purple-700"
             }`}
           >
-            {isVerifiedAtThisLevel && (
+            {isVerifiedAtThisLevel && !isViewOnly && (
               <CheckCircle className="w-4 h-4 mr-2" />
             )}
             {buttonText}

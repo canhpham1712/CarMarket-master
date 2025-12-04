@@ -12,10 +12,12 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { MyListingsPage } from "./pages/MyListingsPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import { SellerVerificationPage } from "./pages/SellerVerificationPage";
+import { BecomeSellerPage } from "./pages/BecomeSellerPage";
 import { ChatPage } from "./pages/ChatPage";
 import { ConversationsListPage } from "./pages/ConversationsListPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { NotificationPreferencesPage } from "./pages/NotificationPreferencesPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { EnhancedAdminDashboard } from "./pages/EnhancedAdminDashboard";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { PaymentCallbackPage } from "./pages/PaymentCallbackPage";
@@ -29,12 +31,12 @@ import { SuperAdminDashboard } from "./pages/dashboards/SuperAdminDashboard";
 import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { ModeratorDashboard } from "./pages/dashboards/ModeratorDashboard";
 import { SellerDashboard } from "./pages/dashboards/SellerDashboard";
-import { BuyerDashboard } from "./pages/dashboards/BuyerDashboard";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { SocketProvider } from "./contexts/SocketContext";
 import { AssistantProvider } from "./contexts/AssistantContext";
 import { useAuthStore } from "./store/auth";
 import { useEffect } from "react";
+import CarValuationPage from "./pages/CarValuationPage";
 
 function App() {
   const initialize = useAuthStore((state) => state.initialize);
@@ -103,6 +105,7 @@ function App() {
                   />
                   <Route path="/cars/:id" element={<CarDetailsPage />} />
                   <Route path="/users/:id" element={<UserProfilePage />} />
+                  <Route path="/valuation" element={<CarValuationPage />} />
 
                   {/* Protected Routes */}
                   <Route
@@ -136,6 +139,14 @@ function App() {
                         <ErrorBoundary>
                           <SellerVerificationPage />
                         </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/become-seller"
+                    element={
+                      <ProtectedRoute>
+                        <BecomeSellerPage />
                       </ProtectedRoute>
                     }
                   />
@@ -189,6 +200,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route
+                    path="/settings"
+                    element={
+                      <ProtectedRoute>
+                        <SettingsPage />
+                      </ProtectedRoute>
+                    }
+                  />
 
                   {/* Admin Routes */}
                   <Route
@@ -230,14 +249,6 @@ function App() {
                     element={
                       <ProtectedRoute requireAnyPermission={["dashboard:seller", "analytics:view"]}>
                         <SellerDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/dashboard/buyer"
-                    element={
-                      <ProtectedRoute requireAnyPermission={["dashboard:buyer", "analytics:view"]}>
-                        <BuyerDashboard />
                       </ProtectedRoute>
                     }
                   />

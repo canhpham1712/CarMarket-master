@@ -33,6 +33,7 @@ const registerSchema = z.object({
     .refine((val) => !val || /^[\+]?[0-9][\d]{8,14}$/.test(val), {
       message: "Please provide a valid phone number",
     }),
+  wantsToSell: z.boolean().optional(),
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
@@ -228,6 +229,28 @@ export function RegisterPage() {
                     {errors.password.message}
                   </p>
                 )}
+              </div>
+
+              <div className="flex items-start">
+                <div className="flex items-center h-5">
+                  <input
+                    id="wantsToSell"
+                    type="checkbox"
+                    {...register("wantsToSell")}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                </div>
+                <div className="ml-3 text-sm">
+                  <label
+                    htmlFor="wantsToSell"
+                    className="font-medium text-gray-700 cursor-pointer"
+                  >
+                    I want to sell cars on CarMarket
+                  </label>
+                  <p className="text-gray-500 mt-1">
+                    Check this box if you plan to list cars for sale. You can always upgrade later.
+                  </p>
+                </div>
               </div>
 
               <Button

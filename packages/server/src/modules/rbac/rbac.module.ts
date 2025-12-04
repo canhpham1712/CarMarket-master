@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Permission } from '../../entities/permission.entity';
 import { Role } from '../../entities/role.entity';
@@ -11,6 +11,8 @@ import { RbacController } from './rbac.controller';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { ResourceGuard } from '../../common/guards/resource.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ChatModule } from '../chat/chat.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
       AuditLog,
       User,
     ]),
+    forwardRef(() => ChatModule), // Use forwardRef to avoid circular dependency
+    NotificationsModule,
   ],
   controllers: [RbacController],
   providers: [

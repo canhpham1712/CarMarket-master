@@ -272,8 +272,26 @@ export class ChatService {
         take: limit,
       });
 
+    // Calculate unread count for each conversation
+    const conversationsWithUnreadCount = await Promise.all(
+      conversations.map(async (conversation) => {
+        const unreadCount = await this.messageRepository.count({
+          where: {
+            conversationId: conversation.id,
+            senderId: Not(userId), // Only count messages from others
+            isRead: false,
+          },
+        });
+
+        return {
+          ...conversation,
+          unreadCount,
+        };
+      }),
+    );
+
     return {
-      conversations,
+      conversations: conversationsWithUnreadCount,
       pagination: {
         page,
         limit,

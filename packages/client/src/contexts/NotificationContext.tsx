@@ -17,7 +17,7 @@ interface NotificationContextType {
   clearNotificationUnreadCount: () => void;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(
+export const NotificationContext = createContext<NotificationContextType | undefined>(
   undefined
 );
 
@@ -108,15 +108,36 @@ export function NotificationProvider({
         refreshNotifications();
       }, 200);
 
+      // Track last shown toast message ID to avoid duplicates
+      const lastShownMessageIds = new Set<string>();
+
       // Listen for global notifications
       const unsubscribeGlobalNotification = socketService.on(
         "globalNotification",
         (data: any) => {
           if (data.type === "newMessage" && data.data.sender.id !== user?.id) {
-            toast.success(
-              `New message from ${data.data.sender.firstName} ${data.data.sender.lastName}`
-            );
-            // Refresh conversations to update unread count
+            const messageId = data.data.message?.id || data.data.id;
+            
+            // Show toast only if we haven't shown it for this message before
+            if (messageId && !lastShownMessageIds.has(messageId)) {
+              toast.success(
+                `New message from ${data.data.sender.firstName} ${data.data.sender.lastName}`,
+                {
+                  duration: 3000,
+                }
+              );
+              lastShownMessageIds.add(messageId);
+              
+              // Clean up old message IDs (keep only last 100)
+              if (lastShownMessageIds.size > 100) {
+                const idsArray = Array.from(lastShownMessageIds);
+                idsArray.slice(0, idsArray.length - 100).forEach(id => lastShownMessageIds.delete(id));
+              }
+            }
+            
+            // Refresh conversations to update unread count from backend
+            // Backend returns count of unread messages from others (not from current user)
+            // This will correctly show the total number of unread messages
             refreshConversations();
           } else if (data.type === "listingApproved") {
             // Show notification when listing is approved
@@ -148,14 +169,15 @@ export function NotificationProvider({
       const unsubscribeNewNotification = socketService.on(
         "newNotification",
         (data: { notification: Notification }) => {
-          // Add new notification to the list
-          setNotifications((prev) => [data.notification, ...prev]);
-          // Increment notification unread count immediately if notification is unread
-          if (!data.notification.isRead) {
-            setNotificationUnreadCount((prev) => prev + 1);
-          }
-          // Refresh notifications from database to ensure consistency
-          refreshNotifications();
+          // Add new notification to the list (avoid duplicates)
+          setNotifications((prev) => {
+            const exists = prev.some((n) => n.id === data.notification.id);
+            if (exists) return prev;
+            return [data.notification, ...prev];
+          });
+          
+          // Don't manually increment count - rely on notificationUnreadCountUpdate event from backend
+          // The backend will send notificationUnreadCountUpdate event with the correct count
           
           // Show toast for important notifications
           if (
@@ -184,14 +206,30 @@ export function NotificationProvider({
               prev.filter((n) => n.id !== data.notificationId)
             );
           }
-          refreshNotifications();
+          // Don't call refreshNotifications() here - rely on notificationUnreadCountUpdate event from backend
+          // The backend will send notificationUnreadCountUpdate event with the updated count
         }
       );
 
       const unsubscribeNotificationUnreadCountUpdate = socketService.on(
         "notificationUnreadCountUpdate",
         (data: { count: number }) => {
+          // Update unread count immediately when backend sends the update
           setNotificationUnreadCount(data.count);
+        }
+      );
+
+      // Listen for socket connection status to refresh count when notifications socket connects
+      const unsubscribeConnectionStatus = socketService.on(
+        "connectionStatusChanged",
+        (data: { connected: boolean; namespace?: string }) => {
+          // When notifications socket connects, refresh to get the latest count
+          if (data.connected && data.namespace === 'notifications') {
+            // Small delay to ensure socket is fully ready
+            setTimeout(() => {
+              refreshNotifications();
+            }, 500);
+          }
         }
       );
 
@@ -214,11 +252,8 @@ export function NotificationProvider({
             return [...newNotifications, ...prev];
           });
           
-          // Update unread count
-          const unreadCount = data.notifications.filter((n) => !n.isRead).length;
-          if (unreadCount > 0) {
-            setNotificationUnreadCount((prev) => prev + unreadCount);
-          }
+          // Don't manually update count - the backend will send notificationUnreadCountUpdate event
+          // after syncing missed notifications (see notifications.gateway.ts handleSync method)
         }
       );
 
@@ -237,6 +272,7 @@ export function NotificationProvider({
         unsubscribeNotificationUnreadCountUpdate();
         unsubscribeChatUnreadCountUpdate();
         unsubscribeMissedNotifications();
+        unsubscribeConnectionStatus();
       };
     }
     
@@ -271,12 +307,3 @@ export function NotificationProvider({
   );
 }
 
-export function useNotifications() {
-  const context = useContext(NotificationContext);
-  if (context === undefined) {
-    throw new Error(
-      "useNotifications must be used within a NotificationProvider"
-    );
-  }
-  return context;
-}

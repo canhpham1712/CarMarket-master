@@ -150,11 +150,11 @@ INSERT INTO car_metadata (type, value, "displayValue", "sortOrder") VALUES
 -- SAMPLE USERS (for testing)
 -- All passwords: admin123
 -- ========================================
-INSERT INTO users (email, password, "firstName", "lastName", "phoneNumber", role, "isEmailVerified") VALUES
-('admin@carmarket.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Admin', 'User', '+1234567890', 'admin', true),
-('john.doe@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'John', 'Doe', '+1234567891', 'user', true),
-('jane.smith@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Jane', 'Smith', '+1234567892', 'user', true),
-('bob.wilson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Bob', 'Wilson', '+1234567893', 'user', true);
+INSERT INTO users (email, password, "firstName", "lastName", "phoneNumber", "isEmailVerified") VALUES
+('admin@carmarket.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Admin', 'User', '+1234567890', true),
+('john.doe@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'John', 'Doe', '+1234567891', true),
+('jane.smith@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Jane', 'Smith', '+1234567892', true),
+('bob.wilson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Bob', 'Wilson', '+1234567893', true);
 
 -- ========================================
 -- SAMPLE CAR DETAILS
@@ -191,12 +191,12 @@ INSERT INTO car_images (filename, "originalName", url, type, "sortOrder", "isPri
 -- ========================================
 -- ADDITIONAL USERS FOR MORE LISTINGS
 -- ========================================
-INSERT INTO users (email, password, "firstName", "lastName", "phoneNumber", role, "isEmailVerified") VALUES
-('mike.johnson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Mike', 'Johnson', '+1234567894', 'user', true),
-('sarah.davis@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Sarah', 'Davis', '+1234567895', 'user', true),
-('david.brown@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'David', 'Brown', '+1234567896', 'user', true),
-('lisa.wilson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Lisa', 'Wilson', '+1234567897', 'user', true),
-('tom.anderson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Tom', 'Anderson', '+1234567898', 'user', true);
+INSERT INTO users (email, password, "firstName", "lastName", "phoneNumber", "isEmailVerified") VALUES
+('mike.johnson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Mike', 'Johnson', '+1234567894', true),
+('sarah.davis@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Sarah', 'Davis', '+1234567895', true),
+('david.brown@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'David', 'Brown', '+1234567896', true),
+('lisa.wilson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Lisa', 'Wilson', '+1234567897', true),
+('tom.anderson@example.com', '$2b$12$5HYF4Zel97OFRi5w2BvB9eC.skTB0qCZ5GKaIm26zATcENWGRXThG', 'Tom', 'Anderson', '+1234567898', true);
 
 -- ========================================
 -- ADDITIONAL CAR DETAILS (20 more cars)

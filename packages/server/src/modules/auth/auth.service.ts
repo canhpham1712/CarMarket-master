@@ -9,7 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User, LegacyUserRole, OAuthProvider } from '../../entities/user.entity';
+import { User, OAuthProvider } from '../../entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -28,7 +28,7 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
-    const { email, password, firstName, lastName, phoneNumber } = registerDto;
+    const { email, password, firstName, lastName, phoneNumber, wantsToSell } = registerDto;
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
@@ -49,7 +49,6 @@ export class AuthService {
       password: hashedPassword,
       firstName,
       lastName,
-      role: LegacyUserRole.USER,
       ...(phoneNumber ? { phoneNumber } : {}),
     } as const;
 
@@ -59,6 +58,11 @@ export class AuthService {
 
     // Assign default 'buyer' role to new user
     await this.assignDefaultRole(savedUser.id);
+
+    // If user wants to sell, also assign seller role
+    if (wantsToSell === true) {
+      await this.assignSellerRole(savedUser.id);
+    }
 
     // Get RBAC roles and permissions for JWT payload
     const userRoles = await this.permissionService.getUserRoles(savedUser.id);
@@ -70,7 +74,6 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: savedUser.id,
       email: savedUser.email,
-      role: savedUser.role || LegacyUserRole.USER, // Keep for backward compatibility
       roles: roleNames, // RBAC roles
       permissions: permissionNames, // RBAC permissions
     };
@@ -124,7 +127,6 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role || LegacyUserRole.USER, // Keep for backward compatibility
       roles: roleNames, // RBAC roles
       permissions: permissionNames, // RBAC permissions
     };
@@ -291,7 +293,6 @@ export class AuthService {
           lastName,
           profileImage,
           provider,
-          role: LegacyUserRole.USER,
           isActive: true,
           isEmailVerified: true, // OAuth users are considered email verified
         });
@@ -312,7 +313,6 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role || LegacyUserRole.USER, // Keep for backward compatibility
       roles: roleNames, // RBAC roles
       permissions: permissionNames, // RBAC permissions
     };
@@ -374,6 +374,129 @@ export class AuthService {
     } catch (error) {
       // Don't fail registration if role assignment fails
       console.error('Failed to assign default role to user:', error);
+    }
+  }
+
+  /**
+   * Assign 'seller' role to a user
+   */
+  private async assignSellerRole(userId: string): Promise<void> {
+    try {
+      // Get 'seller' role
+      const allRoles = await this.permissionService.getAllRoles();
+      const sellerRole = allRoles.find(r => r.name === 'seller');
+
+      if (!sellerRole) {
+        console.warn('Seller role not found, skipping seller role assignment');
+        return;
+      }
+
+      // Check if user already has seller role
+      const existingRoles = await this.permissionService.getUserRoles(userId);
+      const hasSellerRole = existingRoles.some(r => r.name === 'seller');
+
+      if (hasSellerRole) {
+        return; // User already has seller role
+      }
+
+      // Assign seller role (self-assigned)
+      await this.permissionService.assignRole(
+        userId,
+        sellerRole.id,
+        userId, // Self-assigned
+      );
+    } catch (error) {
+      // Don't fail registration if role assignment fails
+      console.error('Failed to assign seller role to user:', error);
+    }
+  }
+
+  /**
+   * Allow user to become a seller (self-service upgrade)
+   */
+  async becomeSeller(userId: string): Promise<AuthResponse> {
+    // Check if user exists
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Assign seller role
+    await this.assignSellerRole(userId);
+
+    // Get updated RBAC roles and permissions for JWT payload
+    const userRoles = await this.permissionService.getUserRoles(userId);
+    const roleNames = userRoles.map(r => r.name);
+    const userPermissions = await this.permissionService.getUserPermissions(userId);
+    const permissionNames = userPermissions.map(p => p.name);
+
+    // Generate new JWT token with updated roles/permissions
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      roles: roleNames, // RBAC roles
+      permissions: permissionNames, // RBAC permissions
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
+    // Remove password from response
+    delete user.password;
+
+    return {
+      user,
+      accessToken,
+    };
+  }
+
+  /**
+   * Check if user session is still valid by comparing JWT roles with database roles
+   */
+  async checkSessionValidity(
+    userId: string,
+    token?: string,
+  ): Promise<{
+    valid: boolean;
+    requiresRefresh: boolean;
+    reason?: string;
+  }> {
+    try {
+      // Get current roles from database
+      const dbRoles = await this.permissionService.getUserRoles(userId);
+      const dbRoleNames = dbRoles.map((r: any) => r.name).sort();
+
+      // Get roles from JWT token if provided
+      if (token) {
+        const payload = this.jwtService.decode(token) as any;
+        const jwtRoleNames = (payload?.roles || []).sort();
+
+        // Compare roles
+        const rolesMatch =
+          dbRoleNames.length === jwtRoleNames.length &&
+          dbRoleNames.every((role, index) => role === jwtRoleNames[index]);
+
+        if (!rolesMatch) {
+          return {
+            valid: false,
+            requiresRefresh: true,
+            reason: 'Your roles have changed. Please login again to receive updated permissions.',
+          };
+        }
+      }
+
+      return {
+        valid: true,
+        requiresRefresh: false,
+      };
+    } catch (error: any) {
+      return {
+        valid: false,
+        requiresRefresh: true,
+        reason: 'Unable to verify session. Please login again.',
+      };
     }
   }
 }

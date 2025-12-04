@@ -8,7 +8,6 @@ export interface User {
   bio?: string;
   location?: string;
   dateOfBirth?: string;
-  role?: "user" | "admin"; // Deprecated: kept for backward compatibility
   roles?: string[]; // RBAC role names (e.g., ['admin', 'seller'])
   isActive: boolean;
   isEmailVerified: boolean;
@@ -149,6 +148,7 @@ export interface RegisterCredentials {
   firstName: string;
   lastName: string;
   phoneNumber?: string;
+  wantsToSell?: boolean;
 }
 
 export interface CreateListingData {

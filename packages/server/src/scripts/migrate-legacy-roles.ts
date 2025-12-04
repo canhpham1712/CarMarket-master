@@ -39,14 +39,9 @@ export async function migrateLegacyRolesToRBAC(dataSource: DataSource): Promise<
         continue;
       }
 
-      // Determine RBAC role based on legacy role
-      let roleName: string;
-      if (user.role === 'admin') {
-        roleName = 'admin';
-      } else {
-        // Default to 'buyer' for regular users
-        roleName = 'buyer';
-      }
+      // Assign default 'buyer' role to users without roles
+      // Admin roles should be assigned through RBAC management interface
+      const roleName = 'buyer';
 
       const role = roleMap.get(roleName);
       if (!role) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Shield, AlertCircle, CheckCircle } from "lucide-react";
+import { Shield, AlertCircle, CheckCircle, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -13,6 +13,7 @@ import {
   VerificationLevel,
 } from "../services/seller-verification.service";
 import { ProfileService } from "../services/profile.service";
+import { useAuthStore } from "../store/auth";
 import type { User } from "../types";
 import { VerificationLevelCard } from "../components/VerificationLevelCard";
 import { VerificationStatusCard } from "../components/VerificationStatusCard";
@@ -28,6 +29,17 @@ export function SellerVerificationPage() {
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  
+  // Get current user roles
+  const { user: authUser } = useAuthStore();
+  const userRoles = authUser?.roles || [];
+  const isSeller = userRoles.includes("seller");
+  const isAdmin = userRoles.includes("admin");
+  const isSuperAdmin = userRoles.includes("super_admin");
+  const isAdminOrSuperAdmin = isAdmin || isSuperAdmin;
+  
+  // Admins can only view, not submit
+  const isViewOnly = isAdminOrSuperAdmin && !isSeller;
   
   // Modal states
   const [basicModalOpen, setBasicModalOpen] = useState(false);
@@ -115,6 +127,24 @@ export function SellerVerificationPage() {
         </p>
       </div>
 
+      {/* View Only Banner for Admin/Super Admin */}
+      {isViewOnly && (
+        <Card className="mb-6 border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Eye className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-blue-900 mb-1">View Only Mode</h3>
+                <p className="text-sm text-blue-800">
+                  As an {isSuperAdmin ? "Super Admin" : "Admin"}, you can view the seller verification process but cannot submit verification requests. 
+                  This page is intended for sellers to verify their identity.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Profile Completeness Banner */}
       {!isProfileComplete && (
         <Card className="mb-6 border-yellow-200 bg-yellow-50">
@@ -158,19 +188,18 @@ export function SellerVerificationPage() {
           level={VerificationLevel.BASIC}
           currentLevel={currentLevel}
           currentStatus={verification?.status || null}
-          onGetVerified={() => setBasicModalOpen(true)}
-          onUpgrade={() => setBasicModalOpen(true)}
+          onGetVerified={isViewOnly ? undefined : () => setBasicModalOpen(true)}
+          onUpgrade={isViewOnly ? undefined : () => setBasicModalOpen(true)}
+          isViewOnly={isViewOnly}
         />
         <VerificationLevelCard
           level={VerificationLevel.STANDARD}
           currentLevel={currentLevel}
           currentStatus={verification?.status || null}
-          onGetVerified={() => setStandardModalOpen(true)}
-          onUpgrade={() => setStandardModalOpen(true)}
-          onViewDetails={() => {
+          onGetVerified={isViewOnly ? undefined : () => setStandardModalOpen(true)}
+          onUpgrade={isViewOnly ? undefined : () => setStandardModalOpen(true)}
+          onViewDetails={isViewOnly ? undefined : () => {
             // Check if verified at Standard level
-            const levelOrder = [VerificationLevel.BASIC, VerificationLevel.STANDARD, VerificationLevel.PREMIUM];
-            const currentLevelIndex = currentLevel ? levelOrder.indexOf(currentLevel) : -1;
             const isVerifiedAtStandard = isApproved && currentLevel === VerificationLevel.STANDARD;
             // Also check if approved at Premium (means Standard was also approved)
             const isVerifiedAtPremium = isApproved && currentLevel === VerificationLevel.PREMIUM;
@@ -180,14 +209,15 @@ export function SellerVerificationPage() {
               setStandardModalOpen(true);
             }
           }}
+          isViewOnly={isViewOnly}
         />
         <VerificationLevelCard
           level={VerificationLevel.PREMIUM}
           currentLevel={currentLevel}
           currentStatus={verification?.status || null}
-          onGetVerified={() => setPremiumModalOpen(true)}
-          onUpgrade={() => setPremiumModalOpen(true)}
-          onViewDetails={() => {
+          onGetVerified={isViewOnly ? undefined : () => setPremiumModalOpen(true)}
+          onUpgrade={isViewOnly ? undefined : () => setPremiumModalOpen(true)}
+          onViewDetails={isViewOnly ? undefined : () => {
             // Check if verified at Premium level
             if (isApproved && currentLevel === VerificationLevel.PREMIUM) {
               setViewEditPremiumModalOpen(true);
@@ -195,6 +225,7 @@ export function SellerVerificationPage() {
               setPremiumModalOpen(true);
             }
           }}
+          isViewOnly={isViewOnly}
         />
       </div>
 

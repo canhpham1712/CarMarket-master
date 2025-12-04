@@ -28,7 +28,6 @@ CREATE TABLE users (
     bio TEXT,
     location VARCHAR(255),
     "dateOfBirth" DATE,
-    role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
     "isActive" BOOLEAN DEFAULT true,
     "isEmailVerified" BOOLEAN DEFAULT false,
     "emailVerificationToken" VARCHAR(255),
@@ -319,7 +318,6 @@ CREATE TABLE activity_logs (
 
 -- Users indexes
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_is_active ON users("isActive");
 
 -- Car makes and models indexes

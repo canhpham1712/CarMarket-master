@@ -216,6 +216,38 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * Force logout a user by sending a forceLogout event
+   * The client will handle the logout and token clearing
+   */
+  forceLogoutUser(userId: string, reason?: string) {
+    if (!this.server) {
+      console.error('[ChatGateway] Server is not initialized. Cannot force logout user.');
+      return false;
+    }
+
+    try {
+      const logoutMessage = {
+        reason: reason || 'Your session has been invalidated. Please login again.',
+        timestamp: new Date().toISOString(),
+      };
+      
+      console.log(`[ChatGateway] 🚪 Force logout requested for user ${userId}`);
+
+      // Emit force logout event to the user's room
+      // All sockets in this room will receive the event
+      this.server.to(`user:${userId}`).emit('forceLogout', logoutMessage);
+      
+      console.log(`[ChatGateway] ✅ Force logout event emitted to room 'user:${userId}'`);
+      console.log(`[ChatGateway] Message: "${logoutMessage.reason}"`);
+      
+      return true;
+    } catch (error: any) {
+      console.error(`[ChatGateway] ❌ Error in forceLogoutUser for user ${userId}:`, error?.message || error);
+      return false;
+    }
+  }
+
   private async verifyToken(token: string): Promise<string | null> {
     try {
       const secret = process.env.JWT_SECRET;

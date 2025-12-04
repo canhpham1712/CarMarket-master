@@ -102,7 +102,6 @@ export class ActionLoggingInterceptor implements NestInterceptor {
           path: request.path,
           query: request.query,
           body: this.sanitizeBody(request.body),
-          userRole: user?.role,
         },
         ipAddress,
         userAgent,
@@ -137,7 +136,6 @@ export class ActionLoggingInterceptor implements NestInterceptor {
           statusCode: response.statusCode,
           duration,
           responseSize: data ? JSON.stringify(data).length : 0,
-          userRole: user?.role,
           responseData: this.sanitizeResponseData(data),
         },
         userId: user?.id,
@@ -170,7 +168,6 @@ export class ActionLoggingInterceptor implements NestInterceptor {
           path: request.path,
           statusCode: response.statusCode,
           duration,
-          userRole: user?.role,
           error: {
             name: error.name,
             message: error.message,

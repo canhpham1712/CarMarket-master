@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Check, Loader2 } from "lucide-react";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../hooks/useNotifications";
 import { NotificationService, type Notification } from "../services/notification.service";
 import { NotificationItem } from "./NotificationItem";
 import { Button } from "./ui/Button";
@@ -63,24 +63,8 @@ export function NotificationDropdown({
     }
   }, [isOpen, refreshNotifications]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen, onClose]);
+  // Click outside handling is done in NotificationBell component
+  // to avoid conflicts with the toggle button
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
