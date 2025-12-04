@@ -16,7 +16,8 @@ async function setupRbac() {
     password: process.env.DATABASE_PASSWORD!,
     database: process.env.DATABASE_NAME!,
     entities: ['src/entities/*.entity.ts'],
-    synchronize: true, // This will create tables automatically
+    // synchronize: true, // This will create tables automatically
+    synchronize: false,
     logging: true,
   });
 
