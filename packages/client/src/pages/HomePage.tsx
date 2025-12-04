@@ -28,6 +28,7 @@ import { ListingService } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { getMediaUrl } from "../lib/utils";
 
 const MAP_VIEW_FETCH_LIMIT = 500;
 
@@ -41,7 +42,7 @@ export function HomePage() {
   const [searchQuery, setSearchQuery] = useState(""); // Search query (auto-applied)
   const [appliedFilters, setAppliedFilters] = useState<SearchFilters>({
     priceMin: 0,
-    priceMax: 100000000,
+    priceMax: 1000000000000,
   }); // Applied filters (single source of truth)
   const [showFilters, setShowFilters] = useState(false);
   const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
@@ -664,7 +665,7 @@ export function HomePage() {
                           <div className="h-12 w-16 flex-shrink-0 bg-gray-200 rounded overflow-hidden mr-4">
                             {item.thumbnail ? (
                               <img 
-                                src={`http://localhost:3000${item.thumbnail}`} 
+                              src={getMediaUrl(item.thumbnail)}
                                 alt={item.title}
                                 className="h-full w-full object-cover"
                               />
