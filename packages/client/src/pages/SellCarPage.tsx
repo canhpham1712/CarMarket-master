@@ -27,6 +27,7 @@ import {
 import { ListingService } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
+import { LocationPicker } from "../components/LocationPicker";
 
 const listingSchema = z.object({
   // Listing Information
@@ -80,6 +81,14 @@ export function SellCarPage() {
     color: "",
     condition: "",
   });
+  const [locationData, setLocationData] = useState<{
+    latitude: number;
+    longitude: number;
+    address: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  } | null>(null);
   const navigate = useNavigate();
   const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
 
@@ -260,9 +269,11 @@ export function SellCarPage() {
         price: data.price,
         priceType,
         location: data.location,
-        city: data.city || "",
-        state: data.state || "",
-        country: data.country || "USA",
+        city: data.city || locationData?.city || "",
+        state: data.state || locationData?.state || "",
+        country: data.country || locationData?.country || "USA",
+        latitude: locationData?.latitude,
+        longitude: locationData?.longitude,
         carDetail: {
           make: data.make,
           model: data.model,
@@ -470,49 +481,28 @@ export function SellCarPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label
-                  htmlFor="location"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Location
-                </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="location"
-                    {...register("location")}
-                    placeholder="New York, NY"
-                    className={`pl-10 ${errors.location ? "border-red-500" : ""}`}
-                  />
-                </div>
-                {errors.location && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.location.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  htmlFor="city"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  City
-                </label>
-                <Input id="city" {...register("city")} placeholder="New York" />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="state"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  State
-                </label>
-                <Input id="state" {...register("state")} placeholder="NY" />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Location
+              </label>
+              <LocationPicker
+                address={watch("location")}
+                latitude={locationData?.latitude}
+                longitude={locationData?.longitude}
+                onLocationChange={(location) => {
+                  setLocationData(location);
+                  setValue("location", location.address);
+                  if (location.city) setValue("city", location.city);
+                  if (location.state) setValue("state", location.state);
+                  if (location.country) setValue("country", location.country);
+                }}
+                height="300px"
+              />
+              {errors.location && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.location.message}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

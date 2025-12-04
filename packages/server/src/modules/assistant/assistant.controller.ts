@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
 import { AssistantService } from './assistant.service';
 import { AssistantQueryDto } from './dto/assistant-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
 
@@ -10,8 +11,9 @@ export class AssistantController {
   constructor(private readonly assistantService: AssistantService) {}
 
   @Get('welcome')
-  getWelcomeMessage() {
-    return this.assistantService.getWelcomeMessage();
+  @UseGuards(OptionalJwtAuthGuard)
+  getWelcomeMessage(@CurrentUser() user?: User) {
+    return this.assistantService.getWelcomeMessage(user?.id);
   }
 
   @Post('query')

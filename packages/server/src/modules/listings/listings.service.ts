@@ -3,9 +3,13 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Optional,
+  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
+import { ChatConversation } from '../../entities/chat-conversation.entity';
+import { User } from '../../entities/user.entity';
 import {
   ListingDetail,
   ListingStatus,
@@ -21,8 +25,14 @@ import {
 } from '../../entities/transaction.entity';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { MarkAsSoldDto } from './dto/mark-as-sold.dto';
 import { hasActualChanges } from '../../utils/value-comparison.util';
 import { LogsService } from '../logs/logs.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notification.entity';
+import { RecommendationsService } from '../recommendations/recommendations.service';
+import { UserViewHistory, ViewAction } from '../../entities/user-view-history.entity';
+import { PromotionStatus } from '../../entities/listing-promotion.entity';
 
 @Injectable()
 export class ListingsService {
@@ -39,7 +49,16 @@ export class ListingsService {
     private readonly pendingChangesRepository: Repository<ListingPendingChanges>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(ChatConversation)
+    private readonly conversationRepository: Repository<ChatConversation>,
+    @InjectRepository(UserViewHistory)
+    private readonly viewHistoryRepository: Repository<UserViewHistory>,
     private readonly logsService: LogsService,
+    private readonly notificationsService: NotificationsService,
+    @Optional() @Inject(RecommendationsService)
+    private readonly recommendationsService?: RecommendationsService,
   ) {}
 
   /**
@@ -269,23 +288,48 @@ export class ListingsService {
   }
 
   async findAll(page: number = 1, limit: number = 10) {
-    // Get all active listings (both approved and sold) with proper ordering
-    const [listings, total] = await this.listingRepository.findAndCount({
-      where: [
-        { status: ListingStatus.APPROVED, isActive: true },
-        { status: ListingStatus.SOLD, isActive: true },
-      ],
-      relations: ['carDetail', 'carDetail.images', 'carDetail.videos', 'seller'],
-      order: {
-        status: 'ASC', // Approved first, then sold
-        createdAt: 'DESC',
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    // Get all active listings with promotions
+    const now = new Date();
+    const queryBuilder = this.listingRepository
+      .createQueryBuilder('listing')
+      .leftJoinAndSelect('listing.carDetail', 'carDetail')
+      .leftJoinAndSelect('carDetail.images', 'images')
+      .leftJoinAndSelect('carDetail.videos', 'videos')
+      .leftJoinAndSelect('listing.seller', 'seller')
+      .leftJoin(
+        'listing_promotions',
+        'promotion',
+        'promotion.listingId = listing.id AND promotion.status = :promoStatus AND promotion.endDate > :now',
+        { promoStatus: PromotionStatus.ACTIVE, now },
+      )
+      .addSelect('promotion.endDate', 'promotion_endDate')
+      .where('listing.status IN (:...statuses)', {
+        statuses: [ListingStatus.APPROVED, ListingStatus.SOLD],
+      })
+      .andWhere('listing.isActive = :isActive', { isActive: true })
+      .orderBy('promotion.endDate', 'DESC', 'NULLS LAST') // Promoted listings first, sorted by endDate DESC
+      .addOrderBy('listing.isFeatured', 'DESC') // Featured listings next
+      .addOrderBy('listing.createdAt', 'DESC'); // Then by creation date
+
+    // Get total count
+    const total = await queryBuilder.getCount();
+
+    // Apply pagination
+    const listings = await queryBuilder
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    // Transform decimal fields to numbers for JSON serialization
+    const transformedListings = listings.map((listing) => ({
+      ...listing,
+      latitude: listing.latitude != null ? Number(listing.latitude) : null,
+      longitude: listing.longitude != null ? Number(listing.longitude) : null,
+      price: Number(listing.price),
+    }));
 
     return {
-      listings,
+      listings: transformedListings,
       pagination: {
         page,
         limit,
@@ -295,7 +339,138 @@ export class ListingsService {
     };
   }
 
-  async findOne(id: string): Promise<ListingDetail> {
+  /**
+   * Find listings within a radius of a given location
+   * Uses Haversine formula to calculate distance
+   */
+  async findNearby(
+    latitude: number,
+    longitude: number,
+    radiusKm: number = 10,
+    page: number = 1,
+    limit: number = 50,
+  ) {
+    // Validate inputs
+    if (latitude < -90 || latitude > 90) {
+      throw new BadRequestException('Invalid latitude. Must be between -90 and 90.');
+    }
+    if (longitude < -180 || longitude > 180) {
+      throw new BadRequestException('Invalid longitude. Must be between -180 and 180.');
+    }
+    if (radiusKm < 0 || radiusKm > 1000) {
+      throw new BadRequestException('Invalid radius. Must be between 0 and 1000 km.');
+    }
+
+    const sanitizedPage = Math.max(1, Number(page) || 1);
+    const sanitizedLimit = Math.min(100, Math.max(1, Number(limit) || 50));
+
+    // Haversine formula constants
+    const earthRadiusKm = 6371;
+    const radiusRad = radiusKm / earthRadiusKm;
+
+    // Calculate bounding box for initial filtering (performance optimization)
+    const latRad = (latitude * Math.PI) / 180;
+    const deltaLat = radiusRad;
+    const deltaLng = Math.asin(Math.sin(radiusRad) / Math.cos(latRad));
+
+    const minLat = latitude - (deltaLat * 180) / Math.PI;
+    const maxLat = latitude + (deltaLat * 180) / Math.PI;
+    const minLng = longitude - (deltaLng * 180) / Math.PI;
+    const maxLng = longitude + (deltaLng * 180) / Math.PI;
+
+    // Query builder with bounding box filter
+    const queryBuilder = this.listingRepository
+      .createQueryBuilder('listing')
+      .leftJoinAndSelect('listing.carDetail', 'carDetail')
+      .leftJoinAndSelect('carDetail.images', 'images')
+      .leftJoinAndSelect('listing.seller', 'seller')
+      .where('listing.status = :status', { status: ListingStatus.APPROVED })
+      .andWhere('listing.isActive = :isActive', { isActive: true })
+      .andWhere('listing.latitude IS NOT NULL')
+      .andWhere('listing.longitude IS NOT NULL')
+      .andWhere('listing.latitude BETWEEN :minLat AND :maxLat', {
+        minLat,
+        maxLat,
+      })
+      .andWhere('listing.longitude BETWEEN :minLng AND :maxLng', {
+        minLng,
+        maxLng,
+      });
+
+    // Get all listings in bounding box
+    const listings = await queryBuilder.getMany();
+
+    // Calculate exact distance using Haversine formula and filter by radius
+    type ListingWithDistance = {
+      listing: ListingDetail;
+      distance: number;
+    };
+
+    const listingsWithDistance = listings
+      .map((listing): ListingWithDistance | null => {
+        if (!listing.latitude || !listing.longitude) {
+          return null;
+        }
+
+        const lat1Rad = (listing.latitude * Math.PI) / 180;
+        const lat2Rad = latRad;
+        const deltaLatRad = lat2Rad - lat1Rad;
+        const deltaLngRad = ((listing.longitude - longitude) * Math.PI) / 180;
+
+        const a =
+          Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
+          Math.cos(lat1Rad) *
+            Math.cos(lat2Rad) *
+            Math.sin(deltaLngRad / 2) *
+            Math.sin(deltaLngRad / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = earthRadiusKm * c;
+
+        return {
+          listing,
+          distance,
+        };
+      })
+      .filter((item): item is ListingWithDistance => item !== null && item.distance <= radiusKm)
+      .sort((a, b) => a.distance - b.distance);
+
+    // Apply pagination
+    const total = listingsWithDistance.length;
+    const skip = (sanitizedPage - 1) * sanitizedLimit;
+    const paginatedResults = listingsWithDistance.slice(
+      skip,
+      skip + sanitizedLimit,
+    );
+
+    // Transform decimal fields to numbers for JSON serialization
+    const transformedListings = paginatedResults.map((item) => ({
+      ...item.listing,
+      latitude: item.listing.latitude != null ? Number(item.listing.latitude) : null,
+      longitude: item.listing.longitude != null ? Number(item.listing.longitude) : null,
+      price: Number(item.listing.price),
+    }));
+
+    return {
+      listings: transformedListings,
+      distances: paginatedResults.map((item) => ({
+        listingId: item.listing.id,
+        distance: Math.round(item.distance * 10) / 10, // Round to 1 decimal place
+      })),
+      pagination: {
+        page: sanitizedPage,
+        limit: sanitizedLimit,
+        total,
+        totalPages: Math.ceil(total / sanitizedLimit),
+      },
+      center: {
+        latitude,
+        longitude,
+      },
+      radius: radiusKm,
+    };
+  }
+
+  async findOne(id: string, userId?: string): Promise<ListingDetail> {
     const listing = await this.listingRepository.findOne({
       where: { id },
       relations: ['carDetail', 'carDetail.images', 'carDetail.videos', 'seller'],
@@ -334,7 +509,23 @@ export class ListingsService {
       viewCount: listing.viewCount + 1,
     });
 
-    return listing;
+    // Track view history if user is authenticated
+    if (userId) {
+      this.trackViewHistory(userId, id, ViewAction.VIEW).catch((err) => {
+        // Log but don't fail the request
+        console.error('Failed to track view history:', err);
+      });
+    }
+
+    // Transform decimal fields to numbers for JSON serialization
+    const transformedListing = {
+      ...listing,
+      latitude: listing.latitude != null ? Number(listing.latitude) : null,
+      longitude: listing.longitude != null ? Number(listing.longitude) : null,
+      price: Number(listing.price),
+    } as ListingDetail;
+
+    return transformedListing;
   }
 
   async update(
@@ -381,7 +572,8 @@ export class ListingsService {
     // Check for listing changes
     (Object.entries(listingData) as [keyof UpdateListingDto, unknown][]) .forEach(([key, value]) => {
       const allowedKeys: Array<keyof UpdateListingDto> = [
-        'title', 'description', 'price', 'priceType', 'location', 'city', 'state', 'country', 'carDetail', 'images'
+        'title', 'description', 'price', 'priceType', 'location', 'city', 'state', 'country', 
+        'latitude', 'longitude', 'carDetail', 'images'
       ];
       if (!allowedKeys.includes(key)) return;
       if (value !== undefined && hasActualChanges((originalValues as any)[key], value)) {
@@ -708,5 +900,229 @@ export class ListingsService {
     }
 
     return this.findOne(id);
+  }
+
+  async markAsSold(
+    listingId: string,
+    sellerId: string,
+    markAsSoldDto: MarkAsSoldDto,
+  ): Promise<{ listing: ListingDetail; transaction: Transaction }> {
+    // Find listing
+    const listing = await this.listingRepository.findOne({
+      where: { id: listingId },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    // Verify ownership
+    if (listing.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only mark your own listings as sold');
+    }
+
+    // Check if already sold
+    if (listing.soldAt) {
+      throw new BadRequestException('This listing has already been marked as sold');
+    }
+
+    // Verify buyer exists
+    const buyer = await this.userRepository.findOne({
+      where: { id: markAsSoldDto.buyerId },
+    });
+
+    if (!buyer) {
+      throw new NotFoundException('Buyer not found');
+    }
+
+    // Prevent self-sale
+    if (markAsSoldDto.buyerId === sellerId) {
+      throw new BadRequestException('You cannot sell to yourself');
+    }
+
+    // Generate transaction number
+    const year = new Date().getFullYear();
+    const allTransactions = await this.transactionRepository.find();
+    const matchingTransactions = allTransactions.filter((t) =>
+      t.transactionNumber.startsWith(`TXN-${year}-`),
+    );
+    const count = matchingTransactions.length;
+    const transactionNumber = `TXN-${year}-${String(count + 1).padStart(3, '0')}`;
+
+    // Calculate platform fee (e.g., 5% of sale amount)
+    const platformFee = Number((markAsSoldDto.amount * 0.05).toFixed(2));
+    const totalAmount = markAsSoldDto.amount + platformFee;
+
+    // Create transaction
+    const transaction = this.transactionRepository.create({
+      transactionNumber,
+      sellerId,
+      buyerId: markAsSoldDto.buyerId,
+      listingId,
+      amount: markAsSoldDto.amount,
+      platformFee,
+      totalAmount,
+      paymentMethod: markAsSoldDto.paymentMethod,
+      paymentReference: markAsSoldDto.paymentReference || null,
+      notes: markAsSoldDto.notes || null,
+      status: TransactionStatus.COMPLETED,
+      completedAt: new Date(),
+    } as Transaction);
+
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    // Mark listing as sold
+    await this.listingRepository.update(listingId, {
+      soldAt: new Date(),
+      isActive: false,
+      status: ListingStatus.SOLD,
+    });
+
+    // Reload listing with relations
+    const updatedListing = await this.findOne(listingId);
+
+    // Create notification for seller
+    try {
+      await this.notificationsService.createNotification(
+        sellerId,
+        NotificationType.LISTING_SOLD,
+        'Listing Sold',
+        `Your listing "${updatedListing.title}" has been marked as sold.`,
+        listingId,
+        {
+          listingTitle: updatedListing.title,
+          buyerId: markAsSoldDto.buyerId,
+          transactionNumber: transactionNumber,
+          amount: markAsSoldDto.amount,
+          soldAt: new Date().toISOString(),
+        },
+      );
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+    }
+
+    // Create notification for buyer
+    try {
+      await this.notificationsService.createNotification(
+        markAsSoldDto.buyerId,
+        NotificationType.LISTING_SOLD,
+        'Purchase Confirmed',
+        `You have successfully purchased "${updatedListing.title}".`,
+        listingId,
+        {
+          listingTitle: updatedListing.title,
+          sellerId: sellerId,
+          transactionNumber: transactionNumber,
+          amount: markAsSoldDto.amount,
+          purchasedAt: new Date().toISOString(),
+        },
+      );
+    } catch (notificationError) {
+      console.error('Error creating buyer notification:', notificationError);
+    }
+
+    return {
+      listing: updatedListing,
+      transaction: savedTransaction,
+    };
+  }
+
+  async getListingBuyers(listingId: string, sellerId: string): Promise<User[]> {
+    // Verify listing exists and belongs to seller
+    const listing = await this.listingRepository.findOne({
+      where: { id: listingId },
+    });
+
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (listing.sellerId !== sellerId) {
+      throw new ForbiddenException('You can only view buyers for your own listings');
+    }
+
+    // Get all conversations for this listing
+    const conversations = await this.conversationRepository.find({
+      where: {
+        listingId,
+        sellerId,
+      },
+      relations: ['buyer'],
+    });
+
+    // Extract unique buyers
+    const buyerMap = new Map<string, User>();
+    conversations.forEach((conv) => {
+      if (conv.buyer && !buyerMap.has(conv.buyerId)) {
+        buyerMap.set(conv.buyerId, conv.buyer);
+      }
+    });
+
+    return Array.from(buyerMap.values());
+  }
+
+  /**
+   * Track view history for a user
+   */
+  private async trackViewHistory(
+    userId: string,
+    listingId: string,
+    action: ViewAction,
+    viewDuration?: number,
+  ): Promise<void> {
+    try {
+      // Check if view was already tracked in the last minute (avoid duplicates)
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      const recentView = await this.viewHistoryRepository.findOne({
+        where: {
+          userId,
+          listingId,
+          action,
+          viewedAt: MoreThan(oneMinuteAgo),
+        },
+        order: { viewedAt: 'DESC' },
+      });
+
+      if (recentView) {
+        // Update existing view with new duration if provided
+        if (viewDuration !== undefined) {
+          recentView.viewDuration = viewDuration;
+          await this.viewHistoryRepository.save(recentView);
+        }
+        return;
+      }
+
+      // Create new view history entry
+      const viewHistory = this.viewHistoryRepository.create({
+        userId,
+        listingId,
+        action,
+        viewDuration: viewDuration || null,
+        viewedAt: new Date(),
+      });
+
+      await this.viewHistoryRepository.save(viewHistory);
+
+      // Invalidate recommendations cache when user views a listing
+      if (this.recommendationsService) {
+        this.recommendationsService.invalidateUserCache(userId).catch((err) => {
+          console.error('Failed to invalidate recommendations cache:', err);
+        });
+      }
+    } catch (error) {
+      // Log but don't fail the request
+      console.error('Failed to track view history:', error);
+    }
+  }
+
+  /**
+   * Track user action (contact seller, favorite, etc.)
+   */
+  async trackUserAction(
+    userId: string,
+    listingId: string,
+    action: ViewAction,
+  ): Promise<void> {
+    await this.trackViewHistory(userId, listingId, action);
   }
 }

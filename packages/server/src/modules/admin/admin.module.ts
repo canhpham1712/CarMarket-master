@@ -11,6 +11,8 @@ import { CarImage } from '../../entities/car-image.entity';
 import { CarVideo } from '../../entities/car-video.entity';
 import { LogsModule } from '../logs/logs.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { ChatModule } from '../chat/chat.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { RbacModule } from '../rbac/rbac.module';
     ]),
     LogsModule,
     RbacModule,
+    ChatModule,
+    NotificationsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

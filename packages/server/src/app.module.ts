@@ -16,6 +16,16 @@ import { LogsModule } from './modules/logs/logs.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { RbacModule } from './modules/rbac/rbac.module';
 import { CommentsModule } from './modules/comments/comments.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { MonitoringModule } from './modules/monitoring/monitoring.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { GeocodingModule } from './modules/geocoding/geocoding.module';
+import { SellerVerificationModule } from './modules/seller-verification/seller-verification.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -40,6 +50,16 @@ import { CommentsModule } from './modules/comments/comments.module';
     AssistantModule,
     RbacModule,
     CommentsModule,
+    NotificationsModule,
+    RatingsModule,
+    AnalyticsModule,
+    RedisModule,
+    MonitoringModule,
+    RecommendationsModule,
+    GeocodingModule,
+    SellerVerificationModule,
+    PromotionsModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

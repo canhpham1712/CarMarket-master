@@ -2,11 +2,14 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  Inject,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Favorite } from '../../entities/favorite.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 
 @Injectable()
 export class FavoritesService {
@@ -15,6 +18,8 @@ export class FavoritesService {
     private readonly favoriteRepository: Repository<Favorite>,
     @InjectRepository(ListingDetail)
     private readonly listingRepository: Repository<ListingDetail>,
+    @Optional() @Inject(RecommendationsService)
+    private readonly recommendationsService?: RecommendationsService,
   ) {}
 
   async addToFavorites(
@@ -52,6 +57,14 @@ export class FavoritesService {
       favoriteCount: listing.favoriteCount + 1,
     });
 
+    // Invalidate recommendations cache
+    if (this.recommendationsService) {
+      this.recommendationsService.invalidateUserCache(userId).catch((err) => {
+        // Log but don't fail the request
+        console.error('Failed to invalidate recommendations cache:', err);
+      });
+    }
+
     return { message: 'Added to favorites successfully' };
   }
 
@@ -77,6 +90,14 @@ export class FavoritesService {
     if (listing) {
       await this.listingRepository.update(listingId, {
         favoriteCount: Math.max(0, listing.favoriteCount - 1),
+      });
+    }
+
+    // Invalidate recommendations cache
+    if (this.recommendationsService) {
+      this.recommendationsService.invalidateUserCache(userId).catch((err) => {
+        // Log but don't fail the request
+        console.error('Failed to invalidate recommendations cache:', err);
       });
     }
 

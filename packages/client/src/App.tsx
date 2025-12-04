@@ -11,13 +11,25 @@ import { UserProfilePage } from "./pages/UserProfilePage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { MyListingsPage } from "./pages/MyListingsPage";
 import FavoritesPage from "./pages/FavoritesPage";
+import { SellerVerificationPage } from "./pages/SellerVerificationPage";
 import { ChatPage } from "./pages/ChatPage";
 import { ConversationsListPage } from "./pages/ConversationsListPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { NotificationPreferencesPage } from "./pages/NotificationPreferencesPage";
 import { EnhancedAdminDashboard } from "./pages/EnhancedAdminDashboard";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
+import { PaymentCallbackPage } from "./pages/PaymentCallbackPage";
+import { PaymentPage } from "./pages/PaymentPage";
+import { PayOSCallbackPage } from "./pages/PayOSCallbackPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
 import { PublicRoute } from "./components/PublicRoute";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { SuperAdminDashboard } from "./pages/dashboards/SuperAdminDashboard";
+import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
+import { ModeratorDashboard } from "./pages/dashboards/ModeratorDashboard";
+import { SellerDashboard } from "./pages/dashboards/SellerDashboard";
+import { BuyerDashboard } from "./pages/dashboards/BuyerDashboard";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { SocketProvider } from "./contexts/SocketContext";
 import { AssistantProvider } from "./contexts/AssistantContext";
@@ -69,6 +81,26 @@ function App() {
                     }
                   />
                   <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                  <Route
+                    path="/promotions/:id/pay"
+                    element={
+                      <ProtectedRoute>
+                        <PaymentPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/promotions/:id/payment/:status"
+                    element={
+                      <ProtectedRoute>
+                        <PaymentCallbackPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/promotions/payos-callback"
+                    element={<PayOSCallbackPage />}
+                  />
                   <Route path="/cars/:id" element={<CarDetailsPage />} />
                   <Route path="/users/:id" element={<UserProfilePage />} />
 
@@ -76,7 +108,7 @@ function App() {
                   <Route
                     path="/sell-car"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requirePermission="listing:create">
                         <SellCarPage />
                       </ProtectedRoute>
                     }
@@ -84,7 +116,7 @@ function App() {
                   <Route
                     path="/edit-listing/:id"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute requirePermission="listing:update">
                         <EditListingPage />
                       </ProtectedRoute>
                     }
@@ -94,6 +126,16 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/verify-seller"
+                    element={
+                      <ProtectedRoute>
+                        <ErrorBoundary>
+                          <SellerVerificationPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     }
                   />
@@ -117,7 +159,9 @@ function App() {
                     path="/conversations"
                     element={
                       <ProtectedRoute>
-                        <ConversationsListPage />
+                        <ErrorBoundary>
+                          <ConversationsListPage />
+                        </ErrorBoundary>
                       </ProtectedRoute>
                     }
                   />
@@ -126,6 +170,22 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <ChatPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/notifications"
+                    element={
+                      <ProtectedRoute>
+                        <NotificationsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/notifications/preferences"
+                    element={
+                      <ProtectedRoute>
+                        <NotificationPreferencesPage />
                       </ProtectedRoute>
                     }
                   />
@@ -139,6 +199,48 @@ function App() {
                       </AdminRoute>
                     }
                   />
+
+                  {/* Analytics Dashboards */}
+                  <Route
+                    path="/dashboard/super-admin"
+                    element={
+                      <ProtectedRoute requireAnyRole={["super_admin"]} requireAnyPermission={["analytics:view"]}>
+                        <SuperAdminDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dashboard/admin"
+                    element={
+                      <ProtectedRoute requireAnyRole={["admin", "super_admin"]} requireAnyPermission={["dashboard:admin", "analytics:view"]}>
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dashboard/moderator"
+                    element={
+                      <ProtectedRoute requireAnyRole={["moderator", "admin", "super_admin"]} requireAnyPermission={["analytics:view"]}>
+                        <ModeratorDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dashboard/seller"
+                    element={
+                      <ProtectedRoute requireAnyPermission={["dashboard:seller", "analytics:view"]}>
+                        <SellerDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dashboard/buyer"
+                    element={
+                      <ProtectedRoute requireAnyPermission={["dashboard:buyer", "analytics:view"]}>
+                        <BuyerDashboard />
+                      </ProtectedRoute>
+                    }
+                  />
                 </Route>
               </Routes>
               <Toaster
@@ -149,6 +251,25 @@ function App() {
                     background: "#363636",
                     color: "#fff",
                   },
+                  className: "toast-with-close",
+                  success: {
+                    duration: 4000,
+                    style: {
+                      background: "#363636",
+                      color: "#fff",
+                    },
+                  },
+                  error: {
+                    duration: 4000,
+                    style: {
+                      background: "#363636",
+                      color: "#fff",
+                    },
+                  },
+                }}
+                containerStyle={{
+                  top: 20,
+                  right: 20,
                 }}
               />
             </div>

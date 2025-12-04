@@ -4,6 +4,8 @@ import { ResponseHandlerService } from './services/response-handler.service';
 import { AssistantQueryDto } from './dto/assistant-query.dto';
 import { AssistantResponseDto } from './dto/assistant-response.dto';
 import { User } from '../../entities/user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notification.entity';
 
 @Injectable()
 export class AssistantService {
@@ -12,6 +14,7 @@ export class AssistantService {
   constructor(
     private readonly intentClassificationService: IntentClassificationService,
     private readonly responseHandlerService: ResponseHandlerService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async processQuery(
@@ -64,16 +67,18 @@ export class AssistantService {
     }
   }
 
-  async getWelcomeMessage(): Promise<AssistantResponseDto> {
-    return {
+  async getWelcomeMessage(userId?: string): Promise<AssistantResponseDto> {
+    const welcomeMessage =
+      "👋 Hi! I'm your car marketplace assistant. I can help you with:\n\n" +
+      "🚗 Car specifications and features\n" +
+      "📋 Available cars in our inventory\n" +
+      "⚖️ Comparing different car models\n" +
+      "❓ Frequently asked questions\n\n" +
+      "How can I assist you today?";
+
+    const response: AssistantResponseDto = {
       intent: null,
-      message:
-        "👋 Hi! I'm your car marketplace assistant. I can help you with:\n\n" +
-        "🚗 Car specifications and features\n" +
-        "📋 Available cars in our inventory\n" +
-        "⚖️ Comparing different car models\n" +
-        "❓ Frequently asked questions\n\n" +
-        "How can I assist you today?",
+      message: welcomeMessage,
       suggestions: [
         {
           id: '1',
@@ -101,6 +106,40 @@ export class AssistantService {
         },
       ],
     };
+
+    // Check for unread listing approval notifications
+    if (userId) {
+      try {
+        const notificationsResponse =
+          await this.notificationsService.getUserNotifications(
+            userId,
+            1,
+            10,
+            true, // unreadOnly
+          );
+
+        const approvalNotifications = notificationsResponse.notifications.filter(
+          (notif) => notif.type === NotificationType.LISTING_APPROVED,
+        );
+
+        if (approvalNotifications.length > 0) {
+          // Return notifications separately in data field
+          response.data = {
+            notifications: approvalNotifications.map((notif) => ({
+              id: notif.id,
+              message: notif.message,
+              listingId: notif.relatedListingId,
+              createdAt: notif.createdAt,
+            })),
+          };
+        }
+      } catch (error) {
+        this.logger.error('Error fetching notifications for welcome message:', error);
+        // Continue with normal welcome message if notification fetch fails
+      }
+    }
+
+    return response;
   }
 }
 

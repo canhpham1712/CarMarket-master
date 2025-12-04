@@ -2,6 +2,9 @@ import { createContext, useContext, useState, useCallback, useEffect } from "rea
 import type { ReactNode } from "react";
 import type { Message, AssistantState } from "../types/assistant.types";
 import { AssistantService } from "../services/assistant.service";
+import { NotificationService, NotificationType } from "../services/notification.service";
+import { useAuthStore } from "../store/auth";
+import { socketService } from "../services/socket.service";
 
 interface AssistantContextType extends AssistantState {
   sendMessage: (content: string) => Promise<void>;
@@ -9,6 +12,7 @@ interface AssistantContextType extends AssistantState {
   minimizeAssistant: () => void;
   clearMessages: () => Promise<void>;
   markAsRead: () => void;
+  notificationCount: number;
 }
 
 const AssistantContext = createContext<AssistantContextType | undefined>(undefined);
@@ -18,6 +22,7 @@ interface AssistantProviderProps {
 }
 
 export const AssistantProvider = ({ children }: AssistantProviderProps) => {
+  const { isAuthenticated } = useAuthStore();
   const [state, setState] = useState<AssistantState>({
     isOpen: false,
     isMinimized: false,
@@ -25,21 +30,80 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     isTyping: false,
     unreadCount: 0,
   });
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // Fetch notification count for listing approvals
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setNotificationCount(0);
+      return;
+    }
+
+    const fetchNotificationCount = async () => {
+      try {
+        const response = await NotificationService.getNotifications(1, 100, true);
+        const approvalNotifications = response.notifications.filter(
+          (notif) => notif.type === NotificationType.LISTING_APPROVED
+        );
+        setNotificationCount(approvalNotifications.length);
+      } catch (error) {
+        console.error("Failed to fetch notification count:", error);
+        setNotificationCount(0);
+      }
+    };
+
+    fetchNotificationCount();
+    
+    // Listen for listing approval notifications via socket
+    const unsubscribeNotification = socketService.on(
+      "globalNotification",
+      (data: any) => {
+        if (data.type === "listingApproved") {
+          fetchNotificationCount();
+        }
+      }
+    );
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchNotificationCount, 30000);
+    
+    return () => {
+      clearInterval(interval);
+      unsubscribeNotification();
+    };
+  }, [isAuthenticated]);
 
   // Initialize assistant with welcome message
   useEffect(() => {
     if (state.messages.length === 0) {
       (async () => {
         const welcomeResponse = await AssistantService.getWelcomeMessage();
-        const welcomeMessage: Message = {
+        const messages: Message[] = [];
+        
+        // Add welcome message
+        messages.push({
           id: Date.now().toString(),
           content: welcomeResponse.message,
           sender: "assistant",
           timestamp: new Date(),
           type: "text",
           actions: welcomeResponse.actions,
-        };
-        setState(prev => ({ ...prev, messages: [welcomeMessage] }));
+        });
+
+        // Add notification messages separately if they exist
+        if (welcomeResponse.data?.notifications && Array.isArray(welcomeResponse.data.notifications)) {
+          welcomeResponse.data.notifications.forEach((notif: any, index: number) => {
+            messages.push({
+              id: `notification-${notif.id}-${Date.now() + index}`,
+              content: `✅ ${notif.message}`,
+              sender: "assistant",
+              timestamp: new Date(notif.createdAt),
+              type: "text",
+            });
+          });
+        }
+
+        setState(prev => ({ ...prev, messages }));
       })();
     }
   }, []);
@@ -115,13 +179,56 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
   }, []);
 
   const toggleAssistant = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      isOpen: !prev.isOpen,
-      isMinimized: false,
-      unreadCount: !prev.isOpen ? 0 : prev.unreadCount,
-    }));
-  }, []);
+    setState(prev => {
+      const willOpen = !prev.isOpen;
+      
+      // When opening chatbot, mark all approval notifications as read and refresh count
+      if (willOpen && isAuthenticated) {
+        NotificationService.getNotifications(1, 100, true)
+          .then(async (response) => {
+            const approvalNotifications = response.notifications.filter(
+              (notif) => notif.type === NotificationType.LISTING_APPROVED
+            );
+            
+            // Mark all approval notifications as read individually
+            if (approvalNotifications.length > 0) {
+              try {
+                // Mark each approval notification as read
+                await Promise.all(
+                  approvalNotifications.map((notif) =>
+                    NotificationService.markAsRead(notif.id).catch((err) => {
+                      console.error(`Failed to mark notification ${notif.id} as read:`, err);
+                    })
+                  )
+                );
+                
+                // Refresh count after marking as read
+                const updatedResponse = await NotificationService.getNotifications(1, 100, true);
+                const updatedApprovalNotifications = updatedResponse.notifications.filter(
+                  (notif) => notif.type === NotificationType.LISTING_APPROVED
+                );
+                setNotificationCount(updatedApprovalNotifications.length);
+              } catch (error) {
+                console.error("Failed to mark notifications as read:", error);
+                setNotificationCount(approvalNotifications.length);
+              }
+            } else {
+              setNotificationCount(0);
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to refresh notification count:", error);
+          });
+      }
+      
+      return {
+        ...prev,
+        isOpen: willOpen,
+        isMinimized: false,
+        unreadCount: willOpen ? 0 : prev.unreadCount,
+      };
+    });
+  }, [isAuthenticated]);
 
   const minimizeAssistant = useCallback(() => {
     setState(prev => ({
@@ -150,6 +257,9 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     setState(prev => ({ ...prev, unreadCount: 0 }));
   }, []);
 
+  // Total badge count = unread messages + unread notifications
+  const totalBadgeCount = state.unreadCount + notificationCount;
+
   return (
     <AssistantContext.Provider
       value={{
@@ -159,6 +269,7 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
         minimizeAssistant,
         clearMessages,
         markAsRead,
+        notificationCount,
       }}
     >
       {children}

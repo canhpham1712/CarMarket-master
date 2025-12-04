@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Plus,
   Car,
@@ -14,6 +14,10 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/Card";
+import { CarCard } from "../components/CarCard";
+import { MarkAsSoldDialog } from "../components/listings/MarkAsSoldDialog";
+import { PromoteListingDialog } from "../components/promotions/PromoteListingDialog";
+import { PromotionService } from "../services/promotion.service";
 import {
   Dialog,
   DialogContent,
@@ -22,24 +26,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/Dialog";
-import { CarCard } from "../components/CarCard";
 import { useAuthStore } from "../store/auth";
 import { ListingService } from "../services/listing.service";
-import type { ListingDetail } from "../types";
+import type { ListingDetail, ListingPromotion } from "../types";
 import toast from "react-hot-toast";
+import { socketService } from "../services/socket.service";
 
 export function MyListingsPage() {
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const hasLoadedPromotions = useRef(false);
   const [userListings, setUserListings] = useState<ListingDetail[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [sortBy, setSortBy] = useState<string>("newest");
-  const [showSoldConfirm, setShowSoldConfirm] = useState(false);
-  const [listingToMarkSold, setListingToMarkSold] = useState<string | null>(
+  const [showSoldDialog, setShowSoldDialog] = useState(false);
+  const [listingToMarkSold, setListingToMarkSold] = useState<ListingDetail | null>(
     null
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [listingToDelete, setListingToDelete] = useState<string | null>(null);
+  const [showPromoteDialog, setShowPromoteDialog] = useState(false);
+  const [listingToPromote, setListingToPromote] = useState<ListingDetail | null>(null);
+  const [promotions, setPromotions] = useState<Map<string, ListingPromotion>>(new Map());
 
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -83,9 +92,93 @@ export function MyListingsPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchUserListings();
+      loadPromotions();
     } else {
       setListingsLoading(false);
     }
+  }, [isAuthenticated]);
+
+  // Reload promotions when returning to this page (e.g., from payment page)
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Load promotions on mount
+      if (!hasLoadedPromotions.current) {
+        loadPromotions();
+        hasLoadedPromotions.current = true;
+      }
+      
+      // Reload when coming from payment page
+      if (location.state?.reloadPromotions) {
+        loadPromotions();
+        // Clear the state
+        window.history.replaceState({}, document.title);
+      }
+      
+      // Reload when page becomes visible
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          loadPromotions();
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [isAuthenticated, location]);
+
+  const loadPromotions = async () => {
+    try {
+      const myPromotions = await PromotionService.getMyPromotions();
+      const promotionsMap = new Map<string, ListingPromotion>();
+      myPromotions.forEach((promo) => {
+        if (promo.status === 'active' && promo.listingId) {
+          promotionsMap.set(promo.listingId, promo);
+        }
+      });
+      setPromotions(promotionsMap);
+    } catch (error) {
+      console.error('Failed to load promotions:', error);
+    }
+  };
+
+  // Listen for listing rejection notifications to refresh listings
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubscribeListingRejected = socketService.on(
+      "listingRejected",
+      (data: {
+        listingId: string;
+        listingTitle: string;
+        message: string;
+        rejectionReason?: string;
+        rejectedAt: string;
+      }) => {
+        // Refresh listings to show updated status
+        fetchUserListings();
+      }
+    );
+
+    const unsubscribeListingApproved = socketService.on(
+      "listingApproved",
+      (data: {
+        listingId: string;
+        listingTitle: string;
+        message: string;
+        approvedAt: string;
+      }) => {
+        // Refresh listings to show updated status
+        fetchUserListings();
+      }
+    );
+
+    return () => {
+      unsubscribeListingRejected();
+      unsubscribeListingApproved();
+    };
   }, [isAuthenticated, fetchUserListings]);
 
   const handleEdit = (id: string) => {
@@ -131,30 +224,28 @@ export function MyListingsPage() {
     }));
   };
 
-  const handleMarkAsSold = (id: string) => {
-    setListingToMarkSold(id);
-    setShowSoldConfirm(true);
+  const handleMarkAsSold = (listing: ListingDetail) => {
+    setListingToMarkSold(listing);
+    setShowSoldDialog(true);
   };
 
-  const confirmMarkAsSold = async () => {
-    if (!listingToMarkSold) return;
+  const handleMarkAsSoldSuccess = () => {
+    // Reload listings
+    fetchUserListings();
+  };
 
-    try {
-      await ListingService.updateListingStatus(listingToMarkSold, "sold");
-      setUserListings((prev) =>
-        prev.map((listing) =>
-          listing.id === listingToMarkSold
-            ? { ...listing, status: "sold" }
-            : listing
-        )
-      );
-      toast.success("Listing marked as sold successfully");
-    } catch (error: any) {
-      toast.error("Failed to mark listing as sold");
-    } finally {
-      setShowSoldConfirm(false);
-      setListingToMarkSold(null);
+  const handlePromote = (listing: ListingDetail) => {
+    if (listing.status !== 'approved') {
+      toast.error('Chỉ có thể đẩy tin đã được duyệt');
+      return;
     }
+    setListingToPromote(listing);
+    setShowPromoteDialog(true);
+  };
+
+  const handlePromoteSuccess = () => {
+    fetchUserListings();
+    loadPromotions();
   };
 
   const sortListings = (listingsToSort: ListingDetail[]) => {
@@ -261,16 +352,23 @@ export function MyListingsPage() {
               </div>
             ) : userListings.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortListings(userListings).map((listing) => (
+                {sortListings(userListings).map((listing) => {
+                  const promotion = promotions.get(listing.id);
+                  const hasActivePromotion = promotion && promotion.status === 'active' && new Date(promotion.endDate) > new Date();
+                  return (
+                    <div key={listing.id} className="relative">
                   <CarCard
-                    key={listing.id}
                     listing={listing}
                     showActions={true}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     onMarkAsSold={handleMarkAsSold}
+                        onPromote={listing.status === 'approved' && !hasActivePromotion ? () => handlePromote(listing) : undefined}
+                        promotion={hasActivePromotion ? promotion : undefined}
                   />
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12">
@@ -388,29 +486,31 @@ export function MyListingsPage() {
         </Card>
       </div>
 
-      {/* Mark as Sold Confirmation Dialog */}
-      <Dialog open={showSoldConfirm} onOpenChange={setShowSoldConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mark as Sold</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to mark this listing as sold? This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSoldConfirm(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmMarkAsSold}
-              className="bg-green-600 text-white hover:bg-green-700"
-            >
-              Mark as Sold
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Promote Listing Dialog */}
+      {listingToPromote && (
+        <PromoteListingDialog
+          listing={listingToPromote}
+          open={showPromoteDialog}
+          onClose={() => {
+            setShowPromoteDialog(false);
+            setListingToPromote(null);
+          }}
+          onSuccess={handlePromoteSuccess}
+        />
+      )}
+
+      {/* Mark as Sold Dialog */}
+      {listingToMarkSold && (
+        <MarkAsSoldDialog
+          listing={listingToMarkSold}
+          open={showSoldDialog}
+          onClose={() => {
+            setShowSoldDialog(false);
+            setListingToMarkSold(null);
+          }}
+          onSuccess={handleMarkAsSoldSuccess}
+        />
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

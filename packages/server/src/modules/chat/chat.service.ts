@@ -2,17 +2,20 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
-import { Server } from 'socket.io';
 import { ChatConversation } from '../../entities/chat-conversation.entity';
 import { ChatMessage, MessageType } from '../../entities/chat-message.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../../entities/notification.entity';
+import { ChatGateway } from './chat.gateway';
+
 @Injectable()
 export class ChatService {
-  private io!: Server;
-
   constructor(
     @InjectRepository(ChatConversation)
     private readonly conversationRepository: Repository<ChatConversation>,
@@ -20,11 +23,10 @@ export class ChatService {
     private readonly messageRepository: Repository<ChatMessage>,
     @InjectRepository(ListingDetail)
     private readonly listingRepository: Repository<ListingDetail>,
+    private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
   ) {}
-
-  setSocketIO(io: Server) {
-    this.io = io;
-  }
 
   async startConversation(buyerId: string, listingId: string) {
     const listing = await this.listingRepository.findOne({
@@ -67,6 +69,25 @@ export class ChatService {
         `Hello! I'm interested in your listing: ${listing.title}`,
         MessageType.SYSTEM,
       );
+
+      // Create notification for seller about new inquiry (with grouping)
+      try {
+        await this.notificationsService.groupOrCreateNotification(
+          listing.sellerId,
+          NotificationType.NEW_INQUIRY,
+          'New Inquiry',
+          `Someone is interested in your listing: "${listing.title}"`,
+          listingId,
+          {
+            listingTitle: listing.title,
+            buyerId: buyerId,
+            conversationId: conversation.id,
+          },
+          60, // Group within 1 hour
+        );
+      } catch (notificationError) {
+        console.error('Error creating new inquiry notification:', notificationError);
+      }
     }
 
     return this.getConversationWithMessages(conversation.id);
@@ -117,14 +138,93 @@ export class ChatService {
     });
 
     // Emit Socket.IO event for real-time updates
-    if (this.io) {
-      const chatNamespace = this.io.of('/chat');
+    if (messageWithSender && this.chatGateway?.server) {
+      // Serialize message to match client interface
+      const serializedMessage = {
+        id: messageWithSender.id,
+        content: messageWithSender.content,
+        type: messageWithSender.type,
+        isRead: messageWithSender.isRead,
+        createdAt: messageWithSender.createdAt.toISOString(),
+        sender: {
+          id: messageWithSender.sender.id,
+          firstName: messageWithSender.sender.firstName,
+          lastName: messageWithSender.sender.lastName,
+          profileImage: messageWithSender.sender.profileImage || undefined,
+        },
+      };
 
-      // Emit to all users in the conversation
-      chatNamespace.to(`conversation:${conversationId}`).emit('newMessage', {
+      // Emit to all users in the conversation room
+      this.chatGateway.server.to(`conversation:${conversationId}`).emit('newMessage', {
         conversationId,
-        message: messageWithSender,
+        message: serializedMessage,
       });
+
+      // Also update conversation for both users
+      const otherUserId =
+        senderId === conversation.buyerId
+          ? conversation.sellerId
+          : conversation.buyerId;
+
+      // Get full conversation data for update
+      const fullConversation = await this.conversationRepository.findOne({
+        where: { id: conversationId },
+        relations: ['buyer', 'seller', 'listing'],
+      });
+
+      if (fullConversation) {
+        this.chatGateway.server.to(`user:${senderId}`).emit('conversationUpdated', {
+          conversation: {
+            id: fullConversation.id,
+            lastMessage: content,
+            lastMessageAt: new Date().toISOString(),
+            buyerId: fullConversation.buyerId,
+            sellerId: fullConversation.sellerId,
+            listingId: fullConversation.listingId,
+          },
+        });
+        this.chatGateway.server.to(`user:${otherUserId}`).emit('conversationUpdated', {
+          conversation: {
+            id: fullConversation.id,
+            lastMessage: content,
+            lastMessageAt: new Date().toISOString(),
+            buyerId: fullConversation.buyerId,
+            sellerId: fullConversation.sellerId,
+            listingId: fullConversation.listingId,
+          },
+        });
+      }
+    }
+
+    // Create notification for the other user (only for non-system messages)
+    if (type !== MessageType.SYSTEM && messageWithSender) {
+      const otherUserId =
+        senderId === conversation.buyerId
+          ? conversation.sellerId
+          : conversation.buyerId;
+
+      // Get listing for notification
+      const listing = await this.listingRepository.findOne({
+        where: { id: conversation.listingId },
+      });
+
+      try {
+        const senderName = `${messageWithSender.sender.firstName} ${messageWithSender.sender.lastName}`;
+        await this.notificationsService.updateOrCreateMessageNotification(
+          otherUserId,
+          conversationId,
+          senderName,
+          conversation.listingId,
+          {
+            conversationId: conversationId,
+            senderId: senderId,
+            messageId: savedMessage.id,
+            listingTitle: listing?.title,
+          },
+        );
+      } catch (notificationError) {
+        console.error('Error creating/updating new message notification:', notificationError);
+      }
     }
 
     return messageWithSender;

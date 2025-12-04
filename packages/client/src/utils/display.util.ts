@@ -3,9 +3,32 @@
  * Handles formatting differences and null/undefined values
  */
 
-export function formatDisplayValue(value: any): string {
+/**
+ * Format coordinates to a human-readable format
+ * Example: 20.1883648 -> "20.188°N"
+ */
+function formatCoordinate(value: number, isLatitude: boolean): string {
+  if (value === null || value === undefined || isNaN(value)) {
+    return "N/A";
+  }
+  const absValue = Math.abs(value);
+  const direction = isLatitude 
+    ? (value >= 0 ? "N" : "S")
+    : (value >= 0 ? "E" : "W");
+  return `${absValue.toFixed(6)}°${direction}`;
+}
+
+export function formatDisplayValue(value: any, fieldName?: string): string {
   if (value === null || value === undefined) {
     return "N/A";
+  }
+
+  // Special handling for coordinates
+  if (fieldName === "latitude" && typeof value === "number") {
+    return formatCoordinate(value, true);
+  }
+  if (fieldName === "longitude" && typeof value === "number") {
+    return formatCoordinate(value, false);
   }
 
   if (typeof value === "string") {

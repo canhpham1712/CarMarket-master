@@ -96,4 +96,13 @@ export class CommentsGateway implements OnGatewayConnection, OnGatewayDisconnect
       listingId,
     });
   }
+
+  emitNotification(userId: string, notification: any) {
+    // Emit to user's personal room in comments namespace
+    // Frontend should listen to this event from comments namespace
+    this.server.to(`user:${userId}`).emit('globalNotification', {
+      type: 'comment_reported',
+      data: notification,
+    });
+  }
 }

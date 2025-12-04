@@ -10,6 +10,7 @@ import { AuditService } from './audit.service';
 import { RbacController } from './rbac.controller';
 import { PermissionGuard } from '../../common/guards/permission.guard';
 import { ResourceGuard } from '../../common/guards/resource.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @Module({
   imports: [
@@ -27,12 +28,14 @@ import { ResourceGuard } from '../../common/guards/resource.guard';
     AuditService,
     PermissionGuard,
     ResourceGuard,
+    RolesGuard,
   ],
   exports: [
     PermissionService,
     AuditService,
     PermissionGuard,
     ResourceGuard,
+    RolesGuard,
   ],
 })
 export class RbacModule {}

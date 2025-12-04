@@ -23,6 +23,16 @@ import { AuditLog } from '../entities/audit-log.entity';
 import { ListingComment } from '../entities/listing-comment.entity';
 import { CommentReaction } from '../entities/comment-reaction.entity';
 import { CommentReport } from '../entities/comment-report.entity';
+import { Notification } from '../entities/notification.entity';
+import { SellerRating } from '../entities/seller-rating.entity';
+import { UserRecommendation } from '../entities/user-recommendation.entity';
+import { UserSearchHistory } from '../entities/user-search-history.entity';
+import { UserViewHistory } from '../entities/user-view-history.entity';
+import { SellerVerification } from '../entities/seller-verification.entity';
+import { SellerVerificationDocument } from '../entities/seller-verification-document.entity';
+import { PhoneVerificationOtp } from '../entities/phone-verification-otp.entity';
+import { ListingPromotion } from '../entities/listing-promotion.entity';
+import { PromotionPricing } from '../entities/promotion-pricing.entity';
 
 @Injectable()
 export class DatabaseConfig implements TypeOrmOptionsFactory {
@@ -69,9 +79,19 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         ListingComment,
         CommentReaction,
         CommentReport,
+        Notification,
+        SellerRating,
+        UserRecommendation,
+        UserSearchHistory,
+        UserViewHistory,
+        SellerVerification,
+        SellerVerificationDocument,
+        PhoneVerificationOtp,
+        ListingPromotion,
+        PromotionPricing,
       ],
       synchronize: false,
-      migrationsRun: true,
+      migrationsRun: false, // Disabled: Run migrations manually using SQL script
       logging: this.configService.get<string>('NODE_ENV') === 'development' ? ['error'] : false,
       migrations: ['dist/migrations/*{.ts,.js}'],
       migrationsTableName: 'migrations',

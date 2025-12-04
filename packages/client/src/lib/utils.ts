@@ -61,3 +61,22 @@ export function truncateText(text: string, length: number = 100): string {
   if (text.length <= length) return text;
   return text.substring(0, length).trim() + "...";
 }
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+
+/**
+ * Safely build an absolute URL for media assets returned from the API.
+ */
+export function getMediaUrl(path?: string | null): string | undefined {
+  if (!path) {
+    return undefined;
+  }
+
+  if (/^(https?:)?\/\//.test(path) || path.startsWith("data:")) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}

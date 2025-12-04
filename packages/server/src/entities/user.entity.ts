@@ -10,6 +10,7 @@ import { Exclude } from 'class-transformer';
 import { ListingDetail } from './listing-detail.entity';
 import { Transaction } from './transaction.entity';
 import { UserRole } from './user-role.entity';
+import { SellerRating } from './seller-rating.entity';
 
 // Keep legacy enum for backward compatibility during migration
 export enum LegacyUserRole {
@@ -104,6 +105,12 @@ export class User {
 
   @OneToMany(() => UserRole, (userRole) => userRole.user)
   userRoles!: UserRole[];
+
+  @OneToMany(() => SellerRating, (rating) => rating.seller)
+  receivedRatings!: SellerRating[];
+
+  @OneToMany(() => SellerRating, (rating) => rating.buyer)
+  givenRatings!: SellerRating[];
 
   // Virtual properties
   get fullName(): string {

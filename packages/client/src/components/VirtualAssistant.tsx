@@ -10,12 +10,16 @@ export function VirtualAssistant() {
     messages,
     isTyping,
     unreadCount,
+    notificationCount,
     sendMessage,
     toggleAssistant,
     minimizeAssistant,
     clearMessages,
     markAsRead,
   } = useAssistant();
+
+  // Total badge count = unread messages + unread notifications
+  const totalBadgeCount = unreadCount + notificationCount;
 
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -93,9 +97,9 @@ export function VirtualAssistant() {
         className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-blue-300"
         aria-label="Open virtual assistant"
       >
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center animate-pulse">
-            {unreadCount}
+        {totalBadgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[24px] h-6 px-1.5 flex items-center justify-center animate-pulse shadow-lg ring-2 ring-white">
+            {totalBadgeCount > 99 ? '99+' : totalBadgeCount}
           </span>
         )}
         <svg

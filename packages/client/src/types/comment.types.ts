@@ -25,6 +25,8 @@ export interface Comment {
   editedAt?: Date;
   isDeleted: boolean;
   isPinned: boolean;
+  isReported: boolean;
+  reportCount: number;
   reactionCount: number;
   replyCount: number;
   reactions: CommentReaction[];

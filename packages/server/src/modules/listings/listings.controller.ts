@@ -12,22 +12,32 @@ import {
   UseInterceptors,
   UploadedFiles,
   Put,
+  BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
+import { MarkAsSoldDto } from './dto/mark-as-sold.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
+import { PermissionGuard } from '../../common/guards/permission.guard';
+import { ResourceGuard } from '../../common/guards/resource.guard';
+import { RequirePermission } from '../../common/decorators/permission.decorator';
+import { RequireResource, RequireOwnership } from '../../common/decorators/resource.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
 
+@ApiTags('Listings')
 @Controller('listings')
 export class ListingsController {
   constructor(private readonly listingsService: ListingsService) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('listing:create')
   @Post()
   create(
     @CurrentUser() user: User,
@@ -36,6 +46,7 @@ export class ListingsController {
     return this.listingsService.create(user.id, createListingDto);
   }
 
+  // Public endpoints - no permission required
   @Get()
   findAll(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
@@ -44,12 +55,40 @@ export class ListingsController {
     return this.listingsService.findAll(page, limit);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.listingsService.findOne(id);
+  @Get('search/nearby')
+  @ApiOperation({ summary: 'Find listings within a radius of a location' })
+  @ApiResponse({ status: 200, description: 'Listings found successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid parameters' })
+  findNearby(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('radius', new ParseIntPipe({ optional: true })) radius: number = 10,
+    @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 50,
+  ) {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw new BadRequestException('Invalid latitude or longitude');
+    }
+
+    return this.listingsService.findNearby(latitude, longitude, radius, page, limit);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user?: User,
+  ) {
+    return this.listingsService.findOne(id, user?.id);
+  }
+
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -59,13 +98,51 @@ export class ListingsController {
     return this.listingsService.update(id, user.id, updateListingDto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:delete')
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: User) {
     return this.listingsService.remove(id, user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:read')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of buyers who contacted seller about this listing' })
+  @ApiResponse({ status: 200, description: 'Buyers retrieved successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Listing not found' })
+  @Get(':id/buyers')
+  getListingBuyers(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.listingsService.getListingBuyers(id, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark a listing as sold and create transaction with buyer' })
+  @ApiResponse({ status: 200, description: 'Listing marked as sold successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Listing or buyer not found' })
+  @Post(':id/mark-as-sold')
+  markAsSold(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+    @Body() markAsSoldDto: MarkAsSoldDto,
+  ) {
+    return this.listingsService.markAsSold(id, user.id, markAsSoldDto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('listing:create')
   @Post('upload-images')
   @UseInterceptors(
     FilesInterceptor('images', 10, {
@@ -117,7 +194,8 @@ export class ListingsController {
     return { images };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('listing:create')
   @Post('upload-videos')
   @UseInterceptors(
     FilesInterceptor('videos', 2, {
@@ -169,13 +247,19 @@ export class ListingsController {
     return { videos };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:read')
   @Get(':id/pending-changes')
   getPendingChanges(@Param('id') id: string) {
     return this.listingsService.getPendingChanges(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Put(':id/pending-changes/:changeId/apply')
   applyPendingChanges(
     @Param('id') id: string,
@@ -185,7 +269,10 @@ export class ListingsController {
     return this.listingsService.applyPendingChanges(id, changeId, user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Put(':id/pending-changes/:changeId/reject')
   rejectPendingChanges(
     @Param('id') _id: string,
@@ -200,7 +287,10 @@ export class ListingsController {
     );
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceGuard, PermissionGuard)
+  @RequireResource('LISTING')
+  @RequireOwnership()
+  @RequirePermission('listing:update')
   @Put(':id/status')
   updateStatus(
     @Param('id') id: string,

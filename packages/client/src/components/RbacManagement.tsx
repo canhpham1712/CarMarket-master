@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from './ui/Select';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/auth';
 import { apiClient } from '../lib/api';
+import { isAdmin } from '../utils/role-utils';
 
 export function RbacManagement() {
   const { user, isAuthenticated, accessToken } = useAuthStore();
@@ -178,7 +179,8 @@ export function RbacManagement() {
     );
   }
 
-  if (user.role !== 'admin') {
+  // Check admin access using RBAC roles
+  if (!isAdmin(user)) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -190,7 +192,9 @@ export function RbacManagement() {
               <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Admin Access Required</h3>
               <p className="text-gray-600">You need admin privileges to access RBAC management.</p>
-              <p className="text-sm text-gray-500 mt-2">Current role: {user.role}</p>
+              <p className="text-sm text-gray-500 mt-2">
+                Current roles: {userRoles.length > 0 ? userRoles.join(', ') : 'None'}
+              </p>
             </div>
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 import { apiClient } from "../lib/api";
-import type { ListingDetail, SearchFilters, SearchResponse } from "../types";
+import type { ListingDetail, SearchFilters, SearchResponse, User } from "../types";
 
 export interface CreateListingPayload {
   title: string;
@@ -10,6 +10,8 @@ export interface CreateListingPayload {
   city?: string;
   state?: string;
   country?: string;
+  latitude?: number;
+  longitude?: number;
   carDetail: {
     make: string;
     model: string;
@@ -38,6 +40,16 @@ export interface CreateListingPayload {
     alt?: string;
     fileSize?: number;
     mimeType?: string;
+  }[];
+  videos?: {
+    filename: string;
+    originalName: string;
+    url: string;
+    alt?: string;
+    fileSize?: number;
+    mimeType?: string;
+    duration?: number;
+    thumbnailUrl?: string;
   }[];
 }
 
@@ -69,6 +81,33 @@ export class ListingService {
 
   static async searchListings(filters: SearchFilters): Promise<SearchResponse> {
     return apiClient.get<SearchResponse>("/search", filters);
+  }
+
+  static async searchNearby(
+    latitude: number,
+    longitude: number,
+    radius: number = 10,
+    page: number = 1,
+    limit: number = 50
+  ): Promise<{
+    listings: ListingDetail[];
+    distances: Array<{ listingId: string; distance: number }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+    center: { latitude: number; longitude: number };
+    radius: number;
+  }> {
+    return apiClient.get("/listings/search/nearby", {
+      lat: latitude,
+      lng: longitude,
+      radius,
+      page,
+      limit,
+    });
   }
 
   static async uploadCarImages(files: File[]): Promise<{
@@ -127,5 +166,22 @@ export class ListingService {
 
   static async updateListingStatus(listingId: string, status: string) {
     return apiClient.put(`/listings/${listingId}/status`, { status });
+  }
+
+  static async getListingBuyers(listingId: string): Promise<User[]> {
+    return apiClient.get<User[]>(`/listings/${listingId}/buyers`);
+  }
+
+  static async markAsSold(
+    listingId: string,
+    data: {
+      buyerId: string;
+      amount: number;
+      paymentMethod: string;
+      paymentReference?: string;
+      notes?: string;
+    }
+  ): Promise<{ listing: ListingDetail; transaction: any }> {
+    return apiClient.post(`/listings/${listingId}/mark-as-sold`, data);
   }
 }

@@ -16,6 +16,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { AuthResponse } from './interfaces/auth-response.interface';
+import { PermissionService } from '../rbac/permission.service';
 
 @Injectable()
 export class AuthService {
@@ -23,6 +24,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly jwtService: JwtService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
@@ -55,11 +57,22 @@ export class AuthService {
 
     const savedUser = await this.userRepository.save(user);
 
+    // Assign default 'buyer' role to new user
+    await this.assignDefaultRole(savedUser.id);
+
+    // Get RBAC roles and permissions for JWT payload
+    const userRoles = await this.permissionService.getUserRoles(savedUser.id);
+    const roleNames = userRoles.map(r => r.name);
+    const userPermissions = await this.permissionService.getUserPermissions(savedUser.id);
+    const permissionNames = userPermissions.map(p => p.name);
+
     // Generate JWT token
     const payload: JwtPayload = {
       sub: savedUser.id,
       email: savedUser.email,
-      role: savedUser.role || LegacyUserRole.USER,
+      role: savedUser.role || LegacyUserRole.USER, // Keep for backward compatibility
+      roles: roleNames, // RBAC roles
+      permissions: permissionNames, // RBAC permissions
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -101,11 +114,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Get RBAC roles and permissions for JWT payload
+    const userRoles = await this.permissionService.getUserRoles(user.id);
+    const roleNames = userRoles.map(r => r.name);
+    const userPermissions = await this.permissionService.getUserPermissions(user.id);
+    const permissionNames = userPermissions.map(p => p.name);
+
     // Generate JWT token
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role || LegacyUserRole.USER,
+      role: user.role || LegacyUserRole.USER, // Keep for backward compatibility
+      roles: roleNames, // RBAC roles
+      permissions: permissionNames, // RBAC permissions
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -275,14 +296,25 @@ export class AuthService {
           isEmailVerified: true, // OAuth users are considered email verified
         });
         user = await this.userRepository.save(user);
+        
+        // Assign default 'buyer' role to new OAuth user
+        await this.assignDefaultRole(user.id);
       }
     }
+
+    // Get RBAC roles and permissions for JWT payload
+    const userRoles = await this.permissionService.getUserRoles(user.id);
+    const roleNames = userRoles.map(r => r.name);
+    const userPermissions = await this.permissionService.getUserPermissions(user.id);
+    const permissionNames = userPermissions.map(p => p.name);
 
     // Generate JWT token
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role: user.role || LegacyUserRole.USER,
+      role: user.role || LegacyUserRole.USER, // Keep for backward compatibility
+      roles: roleNames, // RBAC roles
+      permissions: permissionNames, // RBAC permissions
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -311,5 +343,37 @@ export class AuthService {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return password;
+  }
+
+  /**
+   * Assign default 'buyer' role to a new user
+   */
+  private async assignDefaultRole(userId: string): Promise<void> {
+    try {
+      // Check if user already has roles
+      const existingRoles = await this.permissionService.getUserRoles(userId);
+      if (existingRoles.length > 0) {
+        return; // User already has roles
+      }
+
+      // Get 'buyer' role
+      const allRoles = await this.permissionService.getAllRoles();
+      const buyerRole = allRoles.find(r => r.name === 'buyer');
+
+      if (!buyerRole) {
+        console.warn('Buyer role not found, skipping default role assignment');
+        return;
+      }
+
+      // Assign buyer role (using system user ID or null for assignedBy)
+      await this.permissionService.assignRole(
+        userId,
+        buyerRole.id,
+        userId, // Self-assigned for new users
+      );
+    } catch (error) {
+      // Don't fail registration if role assignment fails
+      console.error('Failed to assign default role to user:', error);
+    }
   }
 }

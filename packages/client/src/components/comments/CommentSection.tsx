@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/auth';
 import { CommentService } from '../../services/comment.service';
 import { socketService } from '../../services/socket.service';
-import type { Comment, CommentQueryParams, CommentCreatedEvent, CommentUpdatedEvent, CommentDeletedEvent, CommentReactionEvent, CommentPinnedEvent } from '../../types/comment.types';
+import type { Comment, CommentQueryParams, CommentCreatedEvent, CommentUpdatedEvent, CommentDeletedEvent, CommentReactionEvent, CommentPinnedEvent, CommentReportedEvent } from '../../types/comment.types';
 import { CommentForm } from './CommentForm';
 import { CommentList } from './CommentList';
 import { Button } from '../ui/Button';
@@ -238,12 +238,34 @@ export function CommentSection({ listingId, listingTitle, sellerId }: CommentSec
     const unsubscribePinned = socketService.on('comment:pinned', (data: CommentPinnedEvent) => {
       if (data.listingId === listingId) {
         setComments(prevComments =>
-          prevComments.map(comment =>
-            comment.id === data.commentId
-              ? { ...comment, isPinned: data.isPinned }
-              : comment
-          )
+          updateNestedComment(prevComments, data.commentId, (comment) => ({
+            ...comment,
+            isPinned: data.isPinned,
+          }))
         );
+      }
+    });
+
+    const unsubscribeReported = socketService.on('comment:reported', async (data: CommentReportedEvent) => {
+      if (data.listingId === listingId) {
+        // Fetch updated comment to get latest report status
+        try {
+          const updatedComment = await CommentService.getComment(data.commentId);
+          setComments(prevComments =>
+            updateNestedComment(prevComments, data.commentId, () => ({
+              ...updatedComment,
+            }))
+          );
+        } catch (error) {
+          // If fetch fails, just update the flags based on what we know
+          setComments(prevComments =>
+            updateNestedComment(prevComments, data.commentId, (comment) => ({
+              ...comment,
+              isReported: true,
+              reportCount: (comment.reportCount || 0) + 1,
+            }))
+          );
+        }
       }
     });
 
@@ -254,6 +276,7 @@ export function CommentSection({ listingId, listingTitle, sellerId }: CommentSec
       unsubscribeDeleted();
       unsubscribeReaction();
       unsubscribePinned();
+      unsubscribeReported();
     };
   }, [listingId]);
 

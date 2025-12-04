@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PermissionGate } from "../components/PermissionGate";
+import { usePermissions } from "../hooks/usePermissions";
 import {
   Users,
   Car,
@@ -41,6 +43,14 @@ import {
   CardTitle,
 } from "../components/ui/Card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/Dialog";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -56,6 +66,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "../components/
 import { apiClient } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import toast from "react-hot-toast";
+import { SellerVerificationService, type SellerVerification, VerificationStatus } from "../services/seller-verification.service";
+import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
 
 interface Listing {
   id: string;
@@ -129,6 +141,7 @@ export function EnhancedAdminDashboard() {
     | "settings"
     | "makes"
     | "metadata"
+    | "verifications"
     | null;
 
   const [activeTab, setActiveTab] = useState<
@@ -139,6 +152,7 @@ export function EnhancedAdminDashboard() {
     | "settings"
     | "makes"
     | "metadata"
+    | "verifications"
   >(tabFromUrl || "overview");
 
   // State management
@@ -156,6 +170,7 @@ export function EnhancedAdminDashboard() {
   const [listingsFilter, setListingsFilter] = useState<string>("all");
   const [listingsSearch, setListingsSearch] = useState<string>("");
   const [usersSearch, setUsersSearch] = useState<string>("");
+  const [makesSearch, setMakesSearch] = useState<string>("");
 
   // Pagination
   const [listingsPagination, setListingsPagination] = useState({
@@ -171,6 +186,19 @@ export function EnhancedAdminDashboard() {
     totalPages: 0,
   });
 
+  // Seller Verifications state
+  const [pendingVerifications, setPendingVerifications] = useState<SellerVerification[]>([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(false);
+  const [selectedVerification, setSelectedVerification] = useState<SellerVerification | null>(null);
+  const [verificationRejectionReason, setVerificationRejectionReason] = useState<string>("");
+  const [verificationsPage, setVerificationsPage] = useState(1);
+  const [verificationsPagination, setVerificationsPagination] = useState<{
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  } | null>(null);
+
 
   // RBAC state
   const [roles, setRoles] = useState<any[]>([]);
@@ -185,6 +213,8 @@ export function EnhancedAdminDashboard() {
   // Modals
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUserVerification, setSelectedUserVerification] = useState<SellerVerification | null>(null);
+  const [selectedUserLastUpdated, setSelectedUserLastUpdated] = useState<Date | null>(null);
   const [actionReason, setActionReason] = useState<string>("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState<{
@@ -193,6 +223,10 @@ export function EnhancedAdminDashboard() {
     title: string;
     message: string;
   } | null>(null);
+  
+  // Make deactivation confirmation dialog
+  const [showDeactivateMakeDialog, setShowDeactivateMakeDialog] = useState(false);
+  const [makeToDeactivate, setMakeToDeactivate] = useState<{ make: any; modelCount: number } | null>(null);
   const [listingWithPendingChanges, setListingWithPendingChanges] =
     useState<any>(null);
   const [pendingChangesLoading, setPendingChangesLoading] = useState(false);
@@ -220,6 +254,7 @@ export function EnhancedAdminDashboard() {
     setSearchParams({ tab });
   };
 
+
   useEffect(() => {
     loadDashboardData();
   }, []);
@@ -236,25 +271,116 @@ export function EnhancedAdminDashboard() {
       loadListings();
     } else if (activeTab === "users") {
       loadUsers();
+    } else if (activeTab === "verifications") {
+      fetchPendingVerifications();
     }
-  }, [activeTab, listingsFilter, listingsSearch, usersSearch, listingsPagination.page, usersPagination.page]);
+  }, [activeTab, listingsFilter, listingsSearch, usersSearch, listingsPagination.page, usersPagination.page, verificationsPage]);
+
+  useEffect(() => {
+    if (activeTab === "verifications") {
+      fetchPendingVerifications();
+    }
+  }, [verificationsPage]);
+
+  // Load verification status and last updated when user is selected
+  useEffect(() => {
+    if (selectedUser && !showRoleAssignment) {
+      // Helper function to calculate last updated from all related tables
+      const calculateLastUpdated = (verification: SellerVerification | null) => {
+        const updateDates: Date[] = [];
+        
+        // From users table
+        if (selectedUser.updatedAt) {
+          updateDates.push(new Date(selectedUser.updatedAt));
+        }
+
+        // From verification (if exists)
+        if (verification?.updatedAt) {
+          updateDates.push(new Date(verification.updatedAt));
+        }
+
+        // From user's listings (get from listings array if available)
+        const userListings = listings.filter(l => l.seller?.id === selectedUser.id);
+        userListings.forEach(listing => {
+          if (listing.updatedAt) {
+            updateDates.push(new Date(listing.updatedAt));
+          }
+        });
+
+        // Get the latest date
+        if (updateDates.length > 0) {
+          const latestDate = new Date(Math.max(...updateDates.map(d => d.getTime())));
+          setSelectedUserLastUpdated(latestDate);
+        } else {
+          setSelectedUserLastUpdated(selectedUser.updatedAt ? new Date(selectedUser.updatedAt) : null);
+        }
+      };
+
+      // Try to find verification in pending verifications list first
+      const verificationInList = pendingVerifications.find(v => v.userId === selectedUser.id);
+      
+      if (verificationInList) {
+        setSelectedUserVerification(verificationInList);
+        calculateLastUpdated(verificationInList);
+      } else {
+        // If not in pending list, try to get from API by fetching all verifications
+        // This is a workaround - ideally we'd have an admin endpoint to get verification by userId
+        apiClient.get(`/seller-verification/admin/pending?page=1&limit=1000`)
+          .then((response: any) => {
+            const allVerifications = response.verifications || [];
+            const foundVerification = allVerifications.find((v: SellerVerification) => v.userId === selectedUser.id);
+            if (foundVerification) {
+              setSelectedUserVerification(foundVerification);
+              calculateLastUpdated(foundVerification);
+            } else {
+              setSelectedUserVerification(null);
+              calculateLastUpdated(null);
+            }
+          })
+          .catch(() => {
+            setSelectedUserVerification(null);
+            calculateLastUpdated(null);
+          });
+      }
+    } else {
+      setSelectedUserVerification(null);
+      setSelectedUserLastUpdated(null);
+    }
+  }, [selectedUser, showRoleAssignment, pendingVerifications, listings]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       const [statsData, analyticsData, metadataData] = await Promise.all([
-        AdminService.getDashboardStats(),
-        AdminService.getAnalyticsOverview(),
-        AdminService.getAllMetadataForAdmin().catch(() => null), // Don't fail if metadata fails
+        AdminService.getDashboardStats().catch((err) => {
+          console.error("Failed to load dashboard stats:", err);
+          return null;
+        }),
+        AdminService.getAnalyticsOverview().catch((err) => {
+          console.error("Failed to load analytics:", err);
+          return null;
+        }),
+        AdminService.getAllMetadataForAdmin().catch((err) => {
+          console.error("Failed to load metadata:", err);
+          return null;
+        }),
       ]);
 
-      setStats({ ...statsData, ...analyticsData });
-      setAdminMetadata(metadataData);
+      if (statsData) {
+        setStats({ ...statsData, ...(analyticsData || {}) });
+      }
+      if (metadataData) {
+        setAdminMetadata(metadataData);
+      }
       
       // Load roles for RBAC functionality
-      await fetchRoles();
-    } catch (error) {
-      toast.error("Failed to load dashboard data");
+      await fetchRoles().catch((err) => {
+        console.error("Failed to load roles:", err);
+      });
+    } catch (error: any) {
+      console.error("Failed to load dashboard data:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load dashboard data";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -304,6 +430,70 @@ export function EnhancedAdminDashboard() {
     } finally {
       setUsersLoading(false);
     }
+  };
+
+  const fetchPendingVerifications = async () => {
+    try {
+      setVerificationsLoading(true);
+      const response = await SellerVerificationService.getPendingVerifications(verificationsPage, 10);
+      console.log("Pending verifications response:", response);
+      setPendingVerifications(response.verifications || []);
+      setVerificationsPagination(response.pagination);
+    } catch (error: any) {
+      console.error("Failed to load pending verifications:", error);
+      const errorMessage = error.response?.data?.message || error.message || "Failed to load pending verifications";
+      toast.error(errorMessage);
+    } finally {
+      setVerificationsLoading(false);
+    }
+  };
+
+  const handleApproveVerification = async (id: string) => {
+    try {
+      await SellerVerificationService.reviewVerification(id, {
+        status: VerificationStatus.APPROVED,
+      });
+      toast.success("✅ Verification approved successfully!");
+      fetchPendingVerifications();
+      loadDashboardData();
+      setSelectedVerification(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to approve verification");
+    }
+  };
+
+  const handleRejectVerification = async (id: string, reason?: string) => {
+    try {
+      await SellerVerificationService.reviewVerification(id, {
+        status: VerificationStatus.REJECTED,
+        rejectionReason: reason,
+      });
+      toast.success("❌ Verification rejected and seller has been notified.");
+      fetchPendingVerifications();
+      loadDashboardData();
+      setSelectedVerification(null);
+      setVerificationRejectionReason("");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to reject verification");
+    }
+  };
+
+  const approveVerificationWithConfirmation = (id: string, verificationName?: string) => {
+    showConfirmation(
+      "approveVerification",
+      id,
+      "Approve Verification",
+      `Are you sure you want to approve the verification for ${verificationName || "this seller"}? This action cannot be undone.`
+    );
+  };
+
+  const rejectVerificationWithConfirmation = (id: string, verificationName?: string) => {
+    showConfirmation(
+      "rejectVerification",
+      id,
+      "Reject Verification",
+      `Are you sure you want to reject the verification for ${verificationName || "this seller"}? Please provide a rejection reason.`
+    );
   };
 
   const handleListingAction = async (action: string, listingId: string) => {
@@ -400,18 +590,43 @@ export function EnhancedAdminDashboard() {
     const { type, target } = confirmationAction;
 
     try {
+      // Check for verification-related actions
+      if (type === "approveVerification") {
+        await handleApproveVerification(target);
+      } else if (type === "rejectVerification") {
+        // For reject, we need to show the rejection reason modal
+        const verification = pendingVerifications.find(v => v.id === target) || selectedVerification;
+        if (verification) {
+          setSelectedVerification(verification);
+          setVerificationRejectionReason("");
+        }
+        setShowConfirmationModal(false);
+        setConfirmationAction(null);
+        return; // Don't close modal, let user provide rejection reason
+      }
+      // Check for listing-related actions that need rejection reason
+      else if (type === "reject") {
+        // For reject listing, show the listing detail modal with rejection reason
+        const listing = listings.find(l => l.id === target);
+        if (listing) {
+          setSelectedListing(listing);
+          setActionReason("");
+        }
+        setShowConfirmationModal(false);
+        setConfirmationAction(null);
+        return; // Don't close modal, let user provide rejection reason
+      }
       // Check for user-related actions
-      if (
+      else if (
         type.includes("user") ||
         type === "makeAdmin"
       ) {
         await handleUserAction(type, target);
       }
-      // Check for listing-related actions
+      // Check for other listing-related actions
       else if (
         type.includes("listing") ||
         type === "approve" ||
-        type === "reject" ||
         type === "delete" ||
         type === "featured" ||
         type === "deactivate" ||
@@ -420,10 +635,12 @@ export function EnhancedAdminDashboard() {
         await handleListingAction(type, target);
       }
     } finally {
-      // Always close the modal after action completion
-      setShowConfirmationModal(false);
-      setConfirmationAction(null);
-      setActionReason("");
+      // Always close the modal after action completion (unless it's reject action)
+      if (type !== "rejectVerification" && type !== "reject") {
+        setShowConfirmationModal(false);
+        setConfirmationAction(null);
+        setActionReason("");
+      }
     }
   };
 
@@ -437,6 +654,8 @@ export function EnhancedAdminDashboard() {
         return "text-red-600 bg-red-100";
       case "inactive":
         return "text-gray-600 bg-gray-100";
+      case "sold":
+        return "text-blue-600 bg-blue-100";
       default:
         return "text-blue-600 bg-blue-100";
     }
@@ -628,16 +847,21 @@ export function EnhancedAdminDashboard() {
     const newStatus = !make.isActive;
     const action = newStatus ? 'activate' : 'deactivate';
     
-    // Show warning when deactivating
+    // Show warning dialog when deactivating
     if (!newStatus) {
       const makeModels = adminMetadata?.models?.filter(m => m.makeId === make.id) || [];
-      const confirmMessage = makeModels.length > 0
-        ? `Are you sure you want to deactivate "${make.displayName}"?\n\nThis will also deactivate ${makeModels.length} model(s) associated with this make.`
-        : `Are you sure you want to deactivate "${make.displayName}"?`;
-      
-      if (!window.confirm(confirmMessage)) return;
+      setMakeToDeactivate({ make, modelCount: makeModels.length });
+      setShowDeactivateMakeDialog(true);
+      return;
     }
 
+    // Direct activation without confirmation
+    await performToggleMakeStatus(make, newStatus);
+  };
+
+  const performToggleMakeStatus = async (make: any, newStatus: boolean) => {
+    const action = newStatus ? 'activate' : 'deactivate';
+    
     try {
       const result = await AdminService.toggleMakeStatus(make.id, newStatus);
       
@@ -671,6 +895,14 @@ export function EnhancedAdminDashboard() {
     } catch (error: any) {
       toast.error(error.response?.data?.message || `Failed to ${action} make`);
     }
+  };
+
+  const confirmDeactivateMake = async () => {
+    if (!makeToDeactivate) return;
+    
+    setShowDeactivateMakeDialog(false);
+    await performToggleMakeStatus(makeToDeactivate.make, false);
+    setMakeToDeactivate(null);
   };
 
   const handleToggleModelStatus = async (model: any) => {
@@ -865,60 +1097,85 @@ export function EnhancedAdminDashboard() {
             value={activeTab}
             onValueChange={(value) => handleTabChange(value as any)}
           >
-            <TabsList className="grid w-full grid-cols-9">
-              <TabsTrigger
-                value="overview"
-                className="flex items-center space-x-2"
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span>Overview</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="listings"
-                className="flex items-center space-x-2"
-              >
-                <Car className="h-4 w-4" />
-                <span>Listings</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="users"
-                className="flex items-center space-x-2"
-              >
-                <Users className="h-4 w-4" />
-                <span>Users</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="makes"
-                className="flex items-center space-x-2"
-              >
-                <Car className="h-4 w-4" />
-                <span>Car Makes</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="metadata"
-                className="flex items-center space-x-2"
-              >
-                <Database className="h-4 w-4" />
-                <span>Metadata</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="analytics"
-                className="flex items-center space-x-2"
-              >
-                <TrendingUp className="h-4 w-4" />
-                <span>Analytics</span>
-              </TabsTrigger>
-              <TabsTrigger value="logs" className="flex items-center space-x-2">
-                <Database className="h-4 w-4" />
-                <span>Logs</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="settings"
-                className="flex items-center space-x-2"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-10">
+              <PermissionGate permission="admin:dashboard">
+                <TabsTrigger
+                  value="overview"
+                  className="flex items-center space-x-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Overview</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:listings">
+                <TabsTrigger
+                  value="listings"
+                  className="flex items-center space-x-2"
+                >
+                  <Car className="h-4 w-4" />
+                  <span>Listings</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:users">
+                <TabsTrigger
+                  value="users"
+                  className="flex items-center space-x-2"
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Users</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:dashboard">
+                <TabsTrigger
+                  value="verifications"
+                  className="flex items-center space-x-2"
+                >
+                  <Shield className="h-4 w-4" />
+                  <span>Verifications</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:manage">
+                <TabsTrigger
+                  value="makes"
+                  className="flex items-center space-x-2"
+                >
+                  <Car className="h-4 w-4" />
+                  <span>Car Makes</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:manage">
+                <TabsTrigger
+                  value="metadata"
+                  className="flex items-center space-x-2"
+                >
+                  <Database className="h-4 w-4" />
+                  <span>Metadata</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="admin:dashboard">
+                <TabsTrigger
+                  value="analytics"
+                  className="flex items-center space-x-2"
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  <span>Analytics</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:logs">
+                <TabsTrigger value="logs" className="flex items-center space-x-2">
+                  <Database className="h-4 w-4" />
+                  <span>Logs</span>
+                </TabsTrigger>
+              </PermissionGate>
+              <PermissionGate permission="system:manage">
+                <TabsTrigger
+                  value="settings"
+                  className="flex items-center space-x-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </TabsTrigger>
+              </PermissionGate>
             </TabsList>
 
             {/* Overview Tab */}
@@ -1083,6 +1340,7 @@ export function EnhancedAdminDashboard() {
                           <option value="approved">Approved</option>
                           <option value="rejected">Rejected</option>
                           <option value="inactive">Inactive</option>
+                          <option value="sold">Sold</option>
                         </select>
                       </div>
                     </div>
@@ -1196,69 +1454,81 @@ export function EnhancedAdminDashboard() {
                                     {listing.status?.toLowerCase() ===
                                       "pending" && (
                                       <>
+                                        <PermissionGate permission="listing:manage">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              showConfirmation(
+                                                "approve",
+                                                listing.id,
+                                                "Approve Listing",
+                                                `Are you sure you want to approve "${listing.title}"?`
+                                              )
+                                            }
+                                            title="Approve this listing"
+                                          >
+                                            <CheckCircle className="h-4 w-4 text-green-600" />
+                                          </Button>
+                                        </PermissionGate>
+                                        <PermissionGate permission="listing:manage">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() =>
+                                              showConfirmation(
+                                                "reject",
+                                                listing.id,
+                                                "Reject Listing",
+                                                `Are you sure you want to reject "${listing.title}"? Please provide a rejection reason.`
+                                              )
+                                            }
+                                            title="Reject this listing"
+                                          >
+                                            <XCircle className="h-4 w-4 text-red-600" />
+                                          </Button>
+                                        </PermissionGate>
+                                      </>
+                                    )}
+                                    {listing.status?.toLowerCase() ===
+                                      "approved" && (
+                                      <PermissionGate permission="listing:manage">
                                         <Button
                                           size="sm"
                                           variant="outline"
                                           onClick={() =>
                                             showConfirmation(
-                                              "approve",
+                                              "deactivate",
                                               listing.id,
-                                              "Approve Listing",
-                                              `Are you sure you want to approve "${listing.title}"?`
+                                              "Deactivate Listing",
+                                              `Are you sure you want to deactivate "${listing.title}"? It will no longer be visible to users.`
                                             )
                                           }
-                                          title="Approve this listing"
+                                          title="Deactivate this listing"
                                         >
-                                          <CheckCircle className="h-4 w-4 text-green-600" />
+                                          <Ban className="h-4 w-4 text-red-600" />
                                         </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            setSelectedListing(listing);
-                                            setActionReason("");
-                                          }}
-                                          title="Reject this listing"
-                                        >
-                                          <XCircle className="h-4 w-4 text-red-600" />
-                                        </Button>
-                                      </>
-                                    )}
-                                    {listing.status?.toLowerCase() ===
-                                      "approved" && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
-                                          showConfirmation(
-                                            "deactivate",
-                                            listing.id,
-                                            "Deactivate Listing",
-                                            `Are you sure you want to deactivate "${listing.title}"? It will no longer be visible to users.`
-                                          )
-                                        }
-                                        title="Deactivate this listing"
-                                      >
-                                        <Ban className="h-4 w-4 text-red-600" />
-                                      </Button>
+                                      </PermissionGate>
                                     )}
                                     {listing.status?.toLowerCase() ===
                                       "inactive" && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
-                                          showConfirmation(
-                                            "reactivate",
-                                            listing.id,
-                                            "Reactivate Listing",
-                                            `Are you sure you want to reactivate "${listing.title}"?`
-                                          )
-                                        }
-                                        title="Reactivate this listing"
-                                      >
-                                        <CheckCircle className="h-4 w-4 text-blue-600" />
-                                      </Button>
+                                      <PermissionGate permission="listing:manage">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            showConfirmation(
+                                              "reactivate",
+                                              listing.id,
+                                              "Reactivate Listing",
+                                              `Are you sure you want to reactivate "${listing.title}"?`
+                                            )
+                                          }
+                                          title="Reactivate this listing"
+                                        >
+                                          <CheckCircle className="h-4 w-4 text-blue-600" />
+                                        </Button>
+                                      </PermissionGate>
                                     )}
                                     {listing.status?.toLowerCase() ===
                                       "sold" && (
@@ -1268,27 +1538,29 @@ export function EnhancedAdminDashboard() {
                                         </span>
                                       </div>
                                     )}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() =>
-                                        showConfirmation(
-                                          "featured",
-                                          listing.id,
-                                          "Toggle Featured Status",
-                                          `Are you sure you want to ${listing.isFeatured ? "remove from" : "add to"} featured listings?`
-                                        )
-                                      }
+                                    <PermissionGate permission="listing:manage">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          showConfirmation(
+                                            "featured",
+                                            listing.id,
+                                            "Toggle Featured Status",
+                                            `Are you sure you want to ${listing.isFeatured ? "remove from" : "add to"} featured listings?`
+                                          )
+                                        }
                                       title={
                                         listing.isFeatured
                                           ? "Remove from featured"
                                           : "Add to featured"
-                                      }
-                                    >
-                                      <Star
-                                        className={`h-4 w-4 ${listing.isFeatured ? "text-yellow-500" : "text-gray-400"}`}
-                                      />
-                                    </Button>
+                                        }
+                                      >
+                                        <Star
+                                          className={`h-4 w-4 ${listing.isFeatured ? "text-yellow-500" : "text-gray-400"}`}
+                                        />
+                                      </Button>
+                                    </PermissionGate>
                                   </div>
                                 </td>
                               </tr>
@@ -1393,30 +1665,26 @@ export function EnhancedAdminDashboard() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="space-y-1">
-                                    {/* Legacy Role */}
-                                    <span
-                                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}
-                                    >
-                                      {user.role}
-                                    </span>
+                                  <div className="flex flex-wrap gap-1">
                                     {/* RBAC Roles */}
-                                    {allUserRoles[user.id] && allUserRoles[user.id].length > 0 && (
-                                      <div className="flex flex-wrap gap-1">
-                                        {allUserRoles[user.id].map((userRole, index) => {
-                                          // Use userRole.role.id if available, otherwise fallback to userRole.roleId
-                                          const roleId = userRole.role?.id || userRole.roleId;
-                                          return (
-                                            <span
-                                              key={index}
-                                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
-                                              title={`Assigned: ${new Date(userRole.assignedAt || userRole.createdAt).toLocaleDateString()}${userRole.expiresAt ? `, Expires: ${new Date(userRole.expiresAt).toLocaleDateString()}` : ''}`}
-                                            >
-                                              {getRoleName(roleId)}
-                                            </span>
-                                          );
-                                        })}
-                                      </div>
+                                    {allUserRoles[user.id] && allUserRoles[user.id].length > 0 ? (
+                                      allUserRoles[user.id].map((userRole, index) => {
+                                        // API returns Role objects directly, not UserRole objects
+                                        // So userRole is already a Role object with id and name properties
+                                        const roleId = userRole.id || userRole.role?.id || userRole.roleId;
+                                        const roleName = userRole.name || getRoleName(roleId);
+                                        return (
+                                          <span
+                                            key={index}
+                                            className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                                            title={userRole.assignedAt || userRole.createdAt ? `Assigned: ${new Date(userRole.assignedAt || userRole.createdAt).toLocaleDateString()}${userRole.expiresAt ? `, Expires: ${new Date(userRole.expiresAt).toLocaleDateString()}` : ''}` : roleName}
+                                          >
+                                            {roleName}
+                                          </span>
+                                        );
+                                      })
+                                    ) : (
+                                      <span className="text-sm text-gray-400 italic">No roles assigned</span>
                                     )}
                                   </div>
                                 </td>
@@ -1438,41 +1706,44 @@ export function EnhancedAdminDashboard() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                   <div className="flex space-x-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setSelectedUser(user)}
-                                      title="View user details"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                    {user.isActive && user.role !== "admin" ? (
+                                    <PermissionGate permission="user:read">
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => {
-                                          setSelectedUser(user);
-                                          setActionReason("");
-                                        }}
-                                        title="Deactivate user account"
+                                        onClick={() => setSelectedUser(user)}
+                                        title="View user details"
                                       >
-                                        <UserX className="h-4 w-4 text-red-600" />
+                                        <Eye className="h-4 w-4" />
                                       </Button>
-                                    ) : user.isActive &&
-                                      user.role === "admin" ? (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled
-                                        title="Cannot deactivate admin accounts"
-                                      >
-                                        <UserX className="h-4 w-4 text-gray-400" />
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
+                                    </PermissionGate>
+                                    <PermissionGate permission="user:manage">
+                                      {user.isActive && user.role !== "admin" ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setSelectedUser(user);
+                                            setActionReason("");
+                                          }}
+                                          title="Deactivate user account"
+                                        >
+                                          <UserX className="h-4 w-4 text-red-600" />
+                                        </Button>
+                                      ) : user.isActive &&
+                                        user.role === "admin" ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          disabled
+                                          title="Cannot deactivate admin accounts"
+                                        >
+                                          <UserX className="h-4 w-4 text-gray-400" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
                                           showConfirmation(
                                             "activate",
                                             user.id,
@@ -1485,36 +1756,41 @@ export function EnhancedAdminDashboard() {
                                         <UserCheck className="h-4 w-4 text-green-600" />
                                       </Button>
                                     )}
-                                    {user.role === "user" && (
+                                    </PermissionGate>
+                                    <PermissionGate permission="user:manage">
+                                      {user.role === "user" && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            showConfirmation(
+                                              "makeAdmin",
+                                              user.id,
+                                              "Promote to Admin",
+                                              `Are you sure you want to promote ${user.firstName} ${user.lastName} to admin? This action cannot be undone.`
+                                            )
+                                          }
+                                          title="Promote user to admin"
+                                        >
+                                          <Shield className="h-4 w-4 text-purple-600" />
+                                        </Button>
+                                      )}
+                                    </PermissionGate>
+                                    {/* RBAC Role Management */}
+                                    <PermissionGate permission="user:manage">
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() =>
-                                          showConfirmation(
-                                            "makeAdmin",
-                                            user.id,
-                                            "Promote to Admin",
-                                            `Are you sure you want to promote ${user.firstName} ${user.lastName} to admin? This action cannot be undone.`
-                                          )
-                                        }
-                                        title="Promote user to admin"
+                                        onClick={() => {
+                                          setSelectedUser(user);
+                                          fetchUserRoles(user.id);
+                                          setShowRoleAssignment(true);
+                                        }}
+                                        title="Manage user roles"
                                       >
-                                        <Shield className="h-4 w-4 text-purple-600" />
+                                        <UserCheck className="h-4 w-4 text-blue-600" />
                                       </Button>
-                                    )}
-                                    {/* RBAC Role Management */}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => {
-                                        setSelectedUser(user);
-                                        fetchUserRoles(user.id);
-                                        setShowRoleAssignment(true);
-                                      }}
-                                      title="Manage user roles"
-                                    >
-                                      <UserCheck className="h-4 w-4 text-blue-600" />
-                                    </Button>
+                                    </PermissionGate>
                                     {/* Removed admin-to-user conversion for security */}
                                   </div>
                                 </td>
@@ -1555,6 +1831,321 @@ export function EnhancedAdminDashboard() {
                     )}
                   </CardContent>
                 </Card>
+              </div>
+            </TabsContent>
+
+            {/* Seller Verifications Tab */}
+            <TabsContent value="verifications">
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Seller Verifications ({verificationsPagination?.total || pendingVerifications.length})
+                  </h2>
+                  <Button onClick={() => fetchPendingVerifications()} variant="outline">
+                    Refresh
+                  </Button>
+                </div>
+
+                {verificationsLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading verifications...</p>
+                  </div>
+                ) : pendingVerifications.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600">No pending verifications</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingVerifications.map((verification) => (
+                      <Card key={verification.id}>
+                        <CardContent className="p-6">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {verification.fullName || "Unknown"}
+                                </h3>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  verification.status === VerificationStatus.PENDING
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}>
+                                  {verification.status}
+                                </span>
+                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {verification.verificationLevel}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 mt-4 text-sm text-gray-600">
+                                <div>
+                                  <span className="font-medium">Phone:</span> {verification.phoneNumber || "N/A"}
+                                  {verification.isPhoneVerified && (
+                                    <CheckCircle className="w-4 h-4 text-green-600 inline ml-1" />
+                                  )}
+                                </div>
+                                <div>
+                                  <span className="font-medium">ID Number:</span> {verification.idNumber || "N/A"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Address:</span> {verification.address || "N/A"}
+                                </div>
+                                <div>
+                                  <span className="font-medium">City:</span> {verification.city || "N/A"}
+                                </div>
+                                {verification.bankAccountNumber && (
+                                  <div>
+                                    <span className="font-medium">Bank:</span> {verification.bankName} - {verification.bankAccountNumber}
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="font-medium">Submitted:</span>{" "}
+                                  {new Date(verification.submittedAt).toLocaleDateString()}
+                                </div>
+                              </div>
+                              {verification.documents && verification.documents.length > 0 && (
+                                <div className="mt-4">
+                                  <p className="text-sm font-medium text-gray-700 mb-2">Documents:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {verification.documents.map((doc, idx) => (
+                                      <a
+                                        key={idx}
+                                        href={doc.fileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-600 hover:underline"
+                                      >
+                                        {doc.documentType} ({doc.fileName})
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2 ml-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  SellerVerificationService.getVerificationById(verification.id)
+                                    .then(setSelectedVerification)
+                                    .catch(() => toast.error("Failed to load verification details"));
+                                }}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                className="bg-green-600 text-white hover:bg-green-700"
+                                size="sm"
+                                onClick={() => approveVerificationWithConfirmation(verification.id, verification.fullName || undefined)}
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => rejectVerificationWithConfirmation(verification.id, verification.fullName || undefined)}
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    {/* Pagination */}
+                    {verificationsPagination && verificationsPagination.totalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={() => setVerificationsPage((p) => Math.max(1, p - 1))}
+                          disabled={verificationsPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-gray-600">
+                          Page {verificationsPage} of {verificationsPagination.totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setVerificationsPage((p) =>
+                              Math.min(verificationsPagination.totalPages, p + 1)
+                            )
+                          }
+                          disabled={verificationsPage === verificationsPagination.totalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Verification Detail Modal */}
+                {selectedVerification && (
+                  <Dialog open={!!selectedVerification} onOpenChange={(open) => {
+                    if (!open) {
+                      setSelectedVerification(null);
+                      setVerificationRejectionReason("");
+                    }
+                  }}>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Verification Details</DialogTitle>
+                        <DialogDescription>
+                          Review seller verification information and documents
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Full Name</p>
+                              <p className="text-gray-900">{selectedVerification.fullName || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Phone Number</p>
+                              <p className="text-gray-900 flex items-center gap-2">
+                                {selectedVerification.phoneNumber || "N/A"}
+                                {selectedVerification.isPhoneVerified && (
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                )}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">ID Number</p>
+                              <p className="text-gray-900">{selectedVerification.idNumber || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Date of Birth</p>
+                              <p className="text-gray-900">
+                                {selectedVerification.dateOfBirth
+                                  ? new Date(selectedVerification.dateOfBirth).toLocaleDateString()
+                                  : "N/A"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">Address</p>
+                              <p className="text-gray-900">{selectedVerification.address || "N/A"}</p>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-600">City</p>
+                              <p className="text-gray-900">{selectedVerification.city || "N/A"}</p>
+                            </div>
+                            {selectedVerification.bankAccountNumber && (
+                              <>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">Bank Name</p>
+                                  <p className="text-gray-900">{selectedVerification.bankName || "N/A"}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">Account Number</p>
+                                  <p className="text-gray-900">{selectedVerification.bankAccountNumber}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-600">Account Holder</p>
+                                  <p className="text-gray-900">{selectedVerification.accountHolderName || "N/A"}</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          {selectedVerification.documents && selectedVerification.documents.length > 0 && (
+                            <div>
+                              <p className="text-sm font-medium text-gray-600 mb-2">Documents</p>
+                              <div className="space-y-2">
+                                {selectedVerification.documents.map((doc, idx) => (
+                                  <a
+                                    key={idx}
+                                    href={doc.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block p-3 border rounded-lg hover:bg-gray-50"
+                                  >
+                                    <p className="font-medium">{doc.documentType}</p>
+                                    <p className="text-sm text-gray-600">{doc.fileName}</p>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {verificationRejectionReason !== undefined && (
+                            <div>
+                              <RejectionReasonTextarea
+                                value={verificationRejectionReason}
+                                onChange={setVerificationRejectionReason}
+                                placeholder="Please provide specific feedback for the seller..."
+                                rows={3}
+                                label="Rejection Reason (will be sent to seller)"
+                              />
+                            </div>
+                          )}
+                          <div className="flex justify-end gap-3 pt-4 border-t">
+                            {verificationRejectionReason !== undefined ? (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setVerificationRejectionReason("");
+                                    setSelectedVerification(null);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => {
+                                    if (selectedVerification) {
+                                      handleRejectVerification(
+                                        selectedVerification.id,
+                                        verificationRejectionReason
+                                      );
+                                    }
+                                  }}
+                                >
+                                  Reject Verification
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setSelectedVerification(null)}
+                                >
+                                  Close
+                                </Button>
+                                <Button
+                                  className="bg-green-600 text-white hover:bg-green-700"
+                                  onClick={() => {
+                                    if (selectedVerification) {
+                                      handleApproveVerification(selectedVerification.id);
+                                    }
+                                  }}
+                                >
+                                  Approve Verification
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setVerificationRejectionReason("");
+                                  }}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </TabsContent>
 
@@ -1793,132 +2384,190 @@ export function EnhancedAdminDashboard() {
 
             {/* Car Makes Tab */}
             <TabsContent value="makes">
-              {adminMetadata && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-gray-900">
-                      Car Makes Management
-                    </h2>
-                    <Button
-                      onClick={() =>
-                        setNewItemForm({ type: "make", visible: true })
-                      }
-                      className="bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add New Make
-                    </Button>
-                  </div>
+              {adminMetadata && (() => {
+                const filteredMakes = adminMetadata.makes.filter((make) => {
+                  if (!makesSearch) return true;
+                  const searchLower = makesSearch.toLowerCase();
+                  return (
+                    make.name.toLowerCase().includes(searchLower) ||
+                    make.displayName.toLowerCase().includes(searchLower)
+                  );
+                });
 
-                  <Card>
-                    <CardContent className="p-0">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Name
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Display Name
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Models
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
-                              </th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {adminMetadata.makes.map((make) => {
-                              const makeModels = adminMetadata?.models?.filter(model => model.makeId === make.id) || [];
-                              const isSelected = selectedMake?.id === make.id;
-                              
-                              return (
-                                <tr key={make.id} className={isSelected ? "bg-blue-50" : ""}>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {make.name}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {make.displayName}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                      {makeModels.length} models
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <span
-                                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        make.isActive
-                                          ? "bg-green-100 text-green-800"
-                                          : "bg-red-100 text-red-800"
-                                      }`}
-                                    >
-                                      {make.isActive ? (
-                                        <>
-                                          <CheckCircle className="w-3 h-3 mr-1" />
-                                          Active
-                                        </>
-                                      ) : (
-                                        <>
-                                          <XCircle className="w-3 h-3 mr-1" />
-                                          Inactive
-                                        </>
-                                      )}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleToggleMakeStatus(make)}
-                                      className="text-orange-600 hover:bg-orange-50"
-                                      title="Deactivate make"
-                                    >
-                                      <Ban className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleViewModels(make)}
-                                      className={isSelected ? "bg-blue-100 text-blue-700" : ""}
-                                    >
-                                      <Eye className="w-3 h-3 mr-1" />
-                                      View Models
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() =>
-                                        setEditingItem({ ...make, type: "make" })
-                                      }
-                                    >
-                                      <Edit className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() => handleDeleteMake(make.id)}
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
+                return (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        Car Makes Management (
+                        {makesSearch
+                          ? `${filteredMakes.length} of ${adminMetadata.makes.length}`
+                          : adminMetadata.makes.length}{" "}
+                        makes)
+                      </h2>
+                      <Button
+                        onClick={() =>
+                          setNewItemForm({ type: "make", visible: true })
+                        }
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add New Make
+                      </Button>
+                    </div>
+
+                    {/* Search Filter */}
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center space-x-2">
+                          <Search className="w-5 h-5 text-gray-400" />
+                          <Input
+                            type="text"
+                            placeholder="Search makes by name or display name..."
+                            value={makesSearch}
+                            onChange={(e) => setMakesSearch(e.target.value)}
+                            className="flex-1"
+                          />
+                          {makesSearch && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setMakesSearch("")}
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Name
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Display Name
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Models
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Status
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {filteredMakes.length > 0 ? (
+                                filteredMakes.map((make) => {
+                                  const makeModels = adminMetadata?.models?.filter(model => model.makeId === make.id) || [];
+                                  const isSelected = selectedMake?.id === make.id;
+                                  
+                                  return (
+                                    <tr key={make.id} className={isSelected ? "bg-blue-50" : ""}>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {make.name}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {make.displayName}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                          {makeModels.length} models
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <span
+                                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                            make.isActive
+                                              ? "bg-green-100 text-green-800"
+                                              : "bg-red-100 text-red-800"
+                                          }`}
+                                        >
+                                          {make.isActive ? (
+                                            <>
+                                              <CheckCircle className="w-3 h-3 mr-1" />
+                                              Active
+                                            </>
+                                          ) : (
+                                            <>
+                                              <XCircle className="w-3 h-3 mr-1" />
+                                              Inactive
+                                            </>
+                                          )}
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleToggleMakeStatus(make)}
+                                          className="text-orange-600 hover:bg-orange-50"
+                                          title="Deactivate make"
+                                        >
+                                          <Ban className="w-3 h-3" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleViewModels(make)}
+                                          className={isSelected ? "bg-blue-100 text-blue-700" : ""}
+                                        >
+                                          <Eye className="w-3 h-3 mr-1" />
+                                          View Models
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            setEditingItem({ ...make, type: "make" })
+                                          }
+                                        >
+                                          <Edit className="w-3 h-3" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() => handleDeleteMake(make.id)}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              ) : (
+                                <tr>
+                                  <td
+                                    colSpan={5}
+                                    className="px-6 py-12 text-center text-gray-500"
+                                  >
+                                    <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                    <p className="text-lg font-medium">
+                                      No makes found
+                                    </p>
+                                    <p className="text-sm mt-1">
+                                      {makesSearch
+                                        ? `No makes match "${makesSearch}"`
+                                        : "No makes available"}
+                                    </p>
                                   </td>
                                 </tr>
-                              );
-                            })}
+                              )}
                           </tbody>
                         </table>
                       </div>
                     </CardContent>
                   </Card>
-
-                </div>
-              )}
+                  </div>
+                );
+              })()}
             </TabsContent>
 
             {/* Metadata Tab */}
@@ -2338,39 +2987,91 @@ export function EnhancedAdminDashboard() {
                                     Listing Changes:
                                   </h6>
                                   <div className="space-y-2">
-                                    {Object.entries(change.changes.listing)
-                                      .filter(([field, newValue]) =>
-                                        shouldShowChange(
-                                          change.originalValues.listing[field],
-                                          newValue
-                                        )
-                                      )
-                                      .map(([field, newValue]) => (
-                                        <div
-                                          key={field}
-                                          className="flex items-center space-x-4 text-sm"
-                                        >
-                                          <span className="font-medium text-gray-600 w-24 capitalize">
-                                            {field
-                                              .replace(/([A-Z])/g, " $1")
-                                              .trim()}
-                                            :
-                                          </span>
-                                          <div className="flex-1">
-                                            <span className="text-red-600 line-through">
-                                              {formatDisplayValue(
-                                                change.originalValues.listing[
+                                    {(() => {
+                                      const listingChanges = Object.entries(change.changes.listing)
+                                        .filter(([field, newValue]) =>
+                                          shouldShowChange(
+                                            change.originalValues.listing[field],
+                                            newValue
+                                          )
+                                        );
+                                      
+                                      // Check if both latitude and longitude are changing
+                                      const hasLatChange = listingChanges.some(([field]) => field === "latitude");
+                                      const hasLngChange = listingChanges.some(([field]) => field === "longitude");
+                                      const hasBothCoords = hasLatChange && hasLngChange;
+                                      
+                                      return listingChanges.map(([field, newValue]) => {
+                                        // Skip individual latitude/longitude if both are changing (we'll show combined)
+                                        if (hasBothCoords && (field === "latitude" || field === "longitude")) {
+                                          // Only show the combined view once (on latitude)
+                                          if (field === "longitude") return null;
+                                          
+                                          // Show combined coordinates view
+                                          const oldLat = change.originalValues.listing.latitude;
+                                          const oldLng = change.originalValues.listing.longitude;
+                                          const newLat = change.changes.listing.latitude;
+                                          const newLng = change.changes.listing.longitude;
+                                          const locationString = change.changes.listing.location || change.originalValues.listing.location;
+                                          
+                                          return (
+                                            <div
+                                              key="location-coordinates"
+                                              className="flex items-start space-x-4 text-sm"
+                                            >
+                                              <span className="font-medium text-gray-600 w-32">
+                                                📍 Location Coordinates:
+                                              </span>
+                                              <div className="flex-1">
+                                                <div className="flex items-center flex-wrap gap-2">
+                                                  <span className="text-red-600 line-through">
+                                                    {oldLat != null && oldLng != null
+                                                      ? `${formatDisplayValue(oldLat, "latitude")}, ${formatDisplayValue(oldLng, "longitude")}`
+                                                      : "N/A"}
+                                                  </span>
+                                                  <span className="mx-2">→</span>
+                                                  <span className="text-green-600 font-medium">
+                                                    {formatDisplayValue(newLat, "latitude")}, {formatDisplayValue(newLng, "longitude")}
+                                                  </span>
+                                                </div>
+                                                {locationString && (
+                                                  <div className="mt-1 text-xs text-gray-500 italic">
+                                                    Address: {locationString}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        
+                                        // Regular field display
+                                        return (
+                                          <div
+                                            key={field}
+                                            className="flex items-center space-x-4 text-sm"
+                                          >
+                                            <span className="font-medium text-gray-600 w-24 capitalize">
+                                              {field
+                                                .replace(/([A-Z])/g, " $1")
+                                                .trim()}
+                                              :
+                                            </span>
+                                            <div className="flex-1">
+                                              <span className="text-red-600 line-through">
+                                                {formatDisplayValue(
+                                                  change.originalValues.listing[field],
                                                   field
-                                                ]
-                                              )}
-                                            </span>
-                                            <span className="mx-2">→</span>
-                                            <span className="text-green-600 font-medium">
-                                              {formatDisplayValue(newValue)}
-                                            </span>
+                                                )}
+                                              </span>
+                                              <span className="mx-2">→</span>
+                                              <span className="text-green-600 font-medium">
+                                                {formatDisplayValue(newValue, field)}
+                                              </span>
+                                            </div>
                                           </div>
-                                        </div>
-                                      ))}
+                                        );
+                                      }).filter(Boolean);
+                                    })()}
                                   </div>
                                 </div>
                               )}
@@ -2480,15 +3181,12 @@ export function EnhancedAdminDashboard() {
               {/* Rejection Form */}
               {rejectionReason !== undefined && (
                 <div className="mt-6 p-4 bg-red-50 rounded-lg">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rejection Reason (will be sent to seller)
-                  </label>
-                  <textarea
+                  <RejectionReasonTextarea
                     value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
+                    onChange={setRejectionReason}
                     placeholder="Please provide specific feedback for the seller to improve their listing..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    label="Rejection Reason (will be sent to seller)"
                   />
                 </div>
               )}
@@ -2496,15 +3194,12 @@ export function EnhancedAdminDashboard() {
               {/* Deactivation Form */}
               {actionReason !== "" && actionReason !== undefined && selectedListing?.status?.toLowerCase() === "approved" && (
                 <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Deactivation Reason (optional - will be recorded in logs)
-                  </label>
-                  <textarea
+                  <RejectionReasonTextarea
                     value={actionReason}
-                    onChange={(e) => setActionReason(e.target.value)}
+                    onChange={setActionReason}
                     placeholder="Reason for deactivating this listing (e.g., policy violation, spam, inappropriate content)..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    label="Deactivation Reason (optional - will be recorded in logs)"
                   />
                 </div>
               )}
@@ -2798,23 +3493,72 @@ export function EnhancedAdminDashboard() {
                     </div>
                   )}
 
-                  {selectedUser.role === "user" && (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        showConfirmation(
-                          "makeAdmin",
-                          selectedUser.id,
-                          "Promote to Admin",
-                          `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
-                        )
-                      }
-                      className="flex items-center space-x-2"
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span>Promote to Admin</span>
-                    </Button>
-                  )}
+                  {(() => {
+                    // Check if user already has admin role using RBAC
+                    const userRoles = allUserRoles[selectedUser.id] || [];
+                    const hasAdminRole = userRoles.some(
+                      (ur: any) => ur.role?.name === 'admin' || ur.name === 'admin'
+                    );
+                    
+                    // Only show button if user doesn't have admin role
+                    if (!hasAdminRole) {
+                      const adminRole = roles.find((r: any) => r.name === 'admin');
+                      
+                      return (
+                        <PermissionGate permission="user:manage">
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              if (!adminRole) {
+                                toast.error('Admin role not found');
+                                return;
+                              }
+                              
+                              if (
+                                window.confirm(
+                                  `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
+                                )
+                              ) {
+                                try {
+                                  // Assign admin role using RBAC API
+                                  await apiClient.post('/rbac/roles/assign', {
+                                    userId: selectedUser.id,
+                                    roleId: adminRole.id,
+                                  });
+                                  
+                                  toast.success('User promoted to admin successfully!');
+                                  
+                                  // Refresh user roles
+                                  await fetchUserRoles(selectedUser.id);
+                                  const updatedUserRoles = await apiClient.get(
+                                    `/rbac/roles/user/${selectedUser.id}`
+                                  ) as any[];
+                                  setAllUserRoles((prev) => ({
+                                    ...prev,
+                                    [selectedUser.id]: updatedUserRoles || [],
+                                  }));
+                                  
+                                  // Refresh user list
+                                  await loadUsers();
+                                } catch (error: any) {
+                                  console.error('Failed to promote user:', error);
+                                  toast.error(
+                                    error.response?.data?.message ||
+                                      'Failed to promote user to admin'
+                                  );
+                                }
+                              }
+                            }}
+                            className="flex items-center space-x-2"
+                          >
+                            <Shield className="h-4 w-4" />
+                            <span>Promote to Admin</span>
+                          </Button>
+                        </PermissionGate>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             </div>
@@ -3544,6 +4288,218 @@ export function EnhancedAdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Deactivate Make Confirmation Dialog */}
+      <Dialog open={showDeactivateMakeDialog} onOpenChange={setShowDeactivateMakeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Car Make</DialogTitle>
+            <DialogDescription>
+              {makeToDeactivate?.modelCount && makeToDeactivate.modelCount > 0 ? (
+                <>
+                  Are you sure you want to deactivate "{makeToDeactivate.make.displayName}"?
+                  <br />
+                  <br />
+                  This will also deactivate {makeToDeactivate.modelCount} model(s) associated with this make.
+                </>
+              ) : (
+                <>Are you sure you want to deactivate "{makeToDeactivate?.make.displayName}"?</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeactivateMakeDialog(false);
+                setMakeToDeactivate(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeactivateMake}
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Details Dialog */}
+      {selectedUser && !showRoleAssignment && (
+        <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>User Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6">
+              {/* User Information */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <User className="h-4 w-4" />
+                      <span className="font-medium">Full Name</span>
+                    </div>
+                    <p className="text-gray-900">{selectedUser.firstName} {selectedUser.lastName}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Mail className="h-4 w-4" />
+                      <span className="font-medium">Email</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-gray-900">{selectedUser.email}</p>
+                      {selectedUser.isEmailVerified && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <CheckCircle className="h-3 w-3" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Phone className="h-4 w-4" />
+                      <span className="font-medium">Phone</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-gray-900">{selectedUser.phoneNumber || "N/A"}</p>
+                      {selectedUserVerification?.isPhoneVerified && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <CheckCircle className="h-3 w-3" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">Date of Birth</span>
+                    </div>
+                    <p className="text-gray-900">
+                      {selectedUser.dateOfBirth
+                        ? new Date(selectedUser.dateOfBirth).toLocaleDateString()
+                        : "N/A"}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Shield className="h-4 w-4" />
+                      <span className="font-medium">Role</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {allUserRoles[selectedUser.id] && allUserRoles[selectedUser.id].length > 0 ? (
+                        allUserRoles[selectedUser.id].map((userRole, index) => {
+                          const roleId = userRole.id || userRole.role?.id || userRole.roleId;
+                          const roleName = userRole.name || getRoleName(roleId);
+                          return (
+                            <span
+                              key={index}
+                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                            >
+                              {roleName}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="text-sm text-gray-400 italic">No roles assigned</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <UserCheck className="h-4 w-4" />
+                      <span className="font-medium">Status</span>
+                    </div>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        selectedUser.isActive
+                          ? "text-green-600 bg-green-100"
+                          : "text-red-600 bg-red-100"
+                      }`}
+                    >
+                      {selectedUser.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">Joined</span>
+                    </div>
+                    <p className="text-gray-900">
+                      {new Date(selectedUser.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-medium">Last Updated</span>
+                    </div>
+                    <p className="text-gray-900">
+                      {selectedUserLastUpdated
+                        ? selectedUserLastUpdated.toLocaleDateString()
+                        : new Date(selectedUser.updatedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200"></div>
+
+              {/* Actions */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Actions</h3>
+                <div className="flex gap-3">
+                  <PermissionGate permission="user:manage">
+                    {selectedUser.isActive && selectedUser.role !== "admin" ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setActionReason("");
+                          showConfirmation(
+                            "deactivate",
+                            selectedUser.id,
+                            "Deactivate User",
+                            `Are you sure you want to deactivate ${selectedUser.firstName} ${selectedUser.lastName}?`
+                          );
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <UserX className="h-4 w-4" />
+                        Deactivate Account
+                      </Button>
+                    ) : null}
+                    {selectedUser.role === "user" && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          showConfirmation(
+                            "makeAdmin",
+                            selectedUser.id,
+                            "Promote to Admin",
+                            `Are you sure you want to promote ${selectedUser.firstName} ${selectedUser.lastName} to admin? This action cannot be undone.`
+                          )
+                        }
+                        className="flex items-center gap-2"
+                      >
+                        <Shield className="h-4 w-4" />
+                        Promote to Admin
+                      </Button>
+                    )}
+                  </PermissionGate>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

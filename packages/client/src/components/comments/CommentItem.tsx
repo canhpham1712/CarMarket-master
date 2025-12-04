@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { Comment } from '../../types/comment.types';
 import { CommentForm } from './CommentForm';
 import { CommentReactions } from './CommentReactions';
+import { ReportCommentDialog } from './ReportCommentDialog';
 import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';
 import { 
@@ -52,9 +53,28 @@ export function CommentItem({
   const [isEditing, setIsEditing] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   const [repliesExpanded, setRepliesExpanded] = useState(false); // Collapse all replies by default (Level 1 and Level 2)
   const [isNewComment, setIsNewComment] = useState(false);
   const commentRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   const isOwner = comment.userId === currentUserId;
   const canEdit = isOwner && !comment.isDeleted;
@@ -123,8 +143,7 @@ export function CommentItem({
   };
 
   const handleReportComment = () => {
-    // TODO: Implement report functionality
-    toast.error('Report functionality coming soon');
+    setShowReportDialog(true);
     setShowMenu(false);
   };
 
@@ -154,6 +173,25 @@ export function CommentItem({
     return 'text-sm';
   };
 
+  // Build avatar URL - handle null, undefined, empty string, and full URLs
+  const getAvatarSrc = () => {
+    const profileImage = comment.user.profileImage;
+    if (!profileImage || !profileImage.trim()) {
+      return undefined;
+    }
+    
+    // If already a full URL (http/https), use it directly
+    if (profileImage.startsWith('http://') || profileImage.startsWith('https://')) {
+      return profileImage;
+    }
+    
+    // Otherwise, prepend base URL
+    const path = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
+    return `http://localhost:3000${path}`;
+  };
+  
+  const avatarSrc = getAvatarSrc();
+
   return (
     <div
       ref={commentRef}
@@ -173,7 +211,7 @@ export function CommentItem({
 
       <div className={`flex space-x-3 ${getIndentationClasses()}`}>
         <Avatar
-          src={comment.user.profileImage}
+          src={avatarSrc}
           alt={`${comment.user.firstName} ${comment.user.lastName}`}
           size={getAvatarSize()}
         />
@@ -195,9 +233,9 @@ export function CommentItem({
               )}
             </div>
 
-            {/* Actions menu - only show for owner */}
-            {isOwner && (
-              <div className="relative flex-shrink-0">
+            {/* Actions menu - show for all authenticated users */}
+            {isAuthenticated && (
+              <div className="relative flex-shrink-0" ref={menuRef}>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -209,7 +247,8 @@ export function CommentItem({
                 </Button>
 
                 {showMenu && (
-                  <div className="absolute right-0 top-9 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-10 min-w-[140px]">
+                  <div className="absolute right-0 top-9 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
+                    {/* Edit - only for owner */}
                     {canEdit && (
                       <button
                         onClick={() => {
@@ -223,7 +262,8 @@ export function CommentItem({
                       </button>
                     )}
                     
-                    {canDelete && (
+                    {/* Delete - for owner or seller */}
+                    {(canDelete || (isSeller && !comment.isDeleted)) && (
                       <button
                         onClick={handleDeleteComment}
                         className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 min-h-[44px] transition-colors"
@@ -233,8 +273,8 @@ export function CommentItem({
                       </button>
                     )}
 
-                    {/* Seller can pin/unpin */}
-                    {isSeller && (
+                    {/* Pin/Unpin - only for seller, only root comments */}
+                    {isSeller && !comment.parentCommentId && (
                       <button
                         onClick={handlePinComment}
                         className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] transition-colors"
@@ -252,22 +292,20 @@ export function CommentItem({
                         )}
                       </button>
                     )}
+
+                    {/* Report - for non-owners and non-sellers */}
+                    {!isOwner && !isSeller && (
+                      <button
+                        onClick={handleReportComment}
+                        className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] transition-colors"
+                      >
+                        <Flag className="w-4 h-4 mr-2" />
+                        Report
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-
-            {/* Report button for non-owners */}
-            {!isOwner && isAuthenticated && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReportComment}
-                className="p-1.5 h-8 w-8 rounded-md hover:bg-gray-100 flex-shrink-0"
-                aria-label="Report comment"
-              >
-                <Flag className="w-4 h-4 text-gray-400" />
-              </Button>
             )}
           </div>
 
@@ -302,11 +340,6 @@ export function CommentItem({
                 aria-label="Reply"
               >
                 <Reply className="w-4 h-4" />
-                {comment.replyCount > 0 && (
-                  <span className="text-xs text-gray-500 font-medium min-w-[20px]">
-                    {comment.replyCount}
-                  </span>
-                )}
               </button>
             )}
           </div>
@@ -342,7 +375,7 @@ export function CommentItem({
               ) : (
                 <>
                   <ChevronDown className="w-4 h-4" />
-                  <span>View {comment.replyCount} {comment.replyCount === 1 ? 'reply' : 'replies'}</span>
+                  <span>View replies</span>
                 </>
               )}
             </button>
@@ -373,6 +406,13 @@ export function CommentItem({
           )}
         </div>
       </div>
+
+      {/* Report Comment Dialog */}
+      <ReportCommentDialog
+        open={showReportDialog}
+        onOpenChange={setShowReportDialog}
+        commentId={comment.id}
+      />
     </div>
   );
 }

@@ -6,17 +6,19 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, IsNull } from 'typeorm';
 import { ListingComment } from '../../entities/listing-comment.entity';
 import { CommentReaction } from '../../entities/comment-reaction.entity';
 import { CommentReport, ReportStatus } from '../../entities/comment-report.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
+import { NotificationType, Notification } from '../../entities/notification.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { CommentQueryDto } from './dto/comment-query.dto';
 import { AddReactionDto } from './dto/add-reaction.dto';
 import { ReportCommentDto } from './dto/report-comment.dto';
 import { ReviewReportDto, ReportedCommentsQueryDto } from './dto/admin.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentsService {
@@ -29,6 +31,7 @@ export class CommentsService {
     private readonly reportRepository: Repository<CommentReport>,
     @InjectRepository(ListingDetail)
     private readonly listingRepository: Repository<ListingDetail>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createComment(userId: string, createDto: CreateCommentDto): Promise<ListingComment> {
@@ -345,9 +348,10 @@ export class CommentsService {
     await this.reactionRepository.remove(reaction);
   }
 
-  async reportComment(commentId: string, userId: string, reportDto: ReportCommentDto): Promise<CommentReport> {
+  async reportComment(commentId: string, userId: string, reportDto: ReportCommentDto): Promise<{ report: CommentReport; notification: Notification | null }> {
     const comment = await this.commentRepository.findOne({
       where: { id: commentId },
+      relations: ['listing', 'listing.seller', 'user'],
     });
 
     if (!comment) {
@@ -375,10 +379,50 @@ export class CommentsService {
       ...(reportDto.description && { description: reportDto.description }),
     });
 
-    return this.reportRepository.save(report);
+    const savedReport = await this.reportRepository.save(report);
+
+    // Update comment's report status and count
+    const reportCount = await this.reportRepository.count({
+      where: { commentId, status: ReportStatus.PENDING },
+    });
+
+    await this.commentRepository.update(commentId, {
+      isReported: reportCount > 0,
+      reportCount,
+    });
+
+    // Send notification to seller if this is the first report
+    let notification = null;
+    if (reportCount === 1 && comment.listing.sellerId) {
+      const reasonLabels: Record<string, string> = {
+        spam: 'Spam',
+        offensive: 'Offensive',
+        inappropriate: 'Inappropriate',
+        harassment: 'Harassment',
+        other: 'Other',
+      };
+
+      const reasonLabel = reasonLabels[reportDto.reason] || reportDto.reason;
+
+      notification = await this.notificationsService.createNotification(
+        comment.listing.sellerId,
+        NotificationType.COMMENT_REPORTED,
+        'Comment Reported',
+        `A comment on your listing "${comment.listing.title}" has been reported for: ${reasonLabel}. Please review and take appropriate action.`,
+        comment.listingId,
+        {
+          commentId: comment.id,
+          commentContent: comment.content.substring(0, 100), // Truncate for preview
+          reportReason: reportDto.reason,
+          reportId: savedReport.id,
+        },
+      );
+    }
+
+    return { report: savedReport, notification };
   }
 
-  async pinComment(commentId: string, userId: string): Promise<void> {
+  async pinComment(commentId: string, userId: string): Promise<{ unpinnedCommentId?: string }> {
     const comment = await this.commentRepository.findOne({
       where: { id: commentId },
       relations: ['listing'],
@@ -396,11 +440,36 @@ export class CommentsService {
       throw new BadRequestException('Cannot pin deleted comment');
     }
 
+    // Only allow pinning root comments (not replies)
+    if (comment.parentCommentId) {
+      throw new BadRequestException('Cannot pin reply comments. Only root comments can be pinned');
+    }
+
+    // Find and unpin any previously pinned comment in the same listing
+    const previouslyPinnedComment = await this.commentRepository.findOne({
+      where: {
+        listingId: comment.listingId,
+        isPinned: true,
+        isDeleted: false,
+        parentCommentId: IsNull(), // Only root comments
+      },
+    });
+
+    let unpinnedCommentId: string | undefined = undefined;
+    if (previouslyPinnedComment && previouslyPinnedComment.id !== commentId) {
+      await this.commentRepository.update(previouslyPinnedComment.id, {
+        isPinned: false,
+      });
+      unpinnedCommentId = previouslyPinnedComment.id;
+    }
+
+    // Pin the new comment
     await this.commentRepository.update(commentId, {
       isPinned: true,
     });
 
     // WebSocket event will be emitted by the controller/gateway
+    return unpinnedCommentId ? { unpinnedCommentId } : {};
   }
 
   async unpinComment(commentId: string, userId: string): Promise<void> {

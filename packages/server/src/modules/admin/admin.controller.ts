@@ -13,23 +13,24 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../common/decorators/permission.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { User, LegacyUserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 
 @Controller('admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(LegacyUserRole.ADMIN)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('dashboard/stats')
+  @RequirePermission('admin:dashboard')
   getDashboardStats() {
     return this.adminService.getDashboardStats();
   }
 
   @Get('users')
+  @RequirePermission('admin:users')
   getAllUsers(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
@@ -38,6 +39,7 @@ export class AdminController {
   }
 
   @Get('listings/pending')
+  @RequirePermission('admin:listings')
   getPendingListings(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
@@ -46,11 +48,13 @@ export class AdminController {
   }
 
   @Put('listings/:id/approve')
+  @RequirePermission('listing:manage')
   approveListing(@Param('id') id: string, @CurrentUser() user: User) {
     return this.adminService.approveListing(id, user.id);
   }
 
   @Put('listings/:id/reject')
+  @RequirePermission('listing:manage')
   rejectListing(
     @Param('id') id: string,
     @CurrentUser() user: User,
@@ -60,11 +64,13 @@ export class AdminController {
   }
 
   @Get('listings/:id/pending-changes')
+  @RequirePermission('admin:listings')
   getListingWithPendingChanges(@Param('id') id: string) {
     return this.adminService.getListingWithPendingChanges(id);
   }
 
   @Get('transactions')
+  @RequirePermission('transaction:read')
   getTransactions(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
@@ -74,6 +80,7 @@ export class AdminController {
 
   // Enhanced listing management
   @Get('listings')
+  @RequirePermission('admin:listings')
   getAllListings(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
@@ -84,11 +91,13 @@ export class AdminController {
   }
 
   @Get('listings/:id')
+  @RequirePermission('admin:listings')
   getListingById(@Param('id') id: string) {
     return this.adminService.getListingById(id);
   }
 
   @Put('listings/:id/status')
+  @RequirePermission('listing:manage')
   updateListingStatus(
     @Param('id') id: string,
     @Body('status') status: string,
@@ -98,22 +107,26 @@ export class AdminController {
   }
 
   @Delete('listings/:id')
+  @RequirePermission('listing:delete')
   deleteListing(@Param('id') id: string, @Body() body: { reason?: string }) {
     return this.adminService.deleteListing(id, body.reason);
   }
 
   @Put('listings/:id/featured')
+  @RequirePermission('listing:manage')
   toggleFeatured(@Param('id') id: string) {
     return this.adminService.toggleFeatured(id);
   }
 
   // Enhanced user management
   @Get('users/:id')
+  @RequirePermission('user:read')
   getUserById(@Param('id') id: string) {
     return this.adminService.getUserById(id);
   }
 
   @Put('users/:id/status')
+  @RequirePermission('user:manage')
   updateUserStatus(
     @Param('id') id: string,
     @Body('isActive') isActive: boolean,
@@ -123,11 +136,13 @@ export class AdminController {
   }
 
   @Put('users/:id/role')
+  @RequirePermission('user:manage')
   updateUserRole(@Param('id') id: string, @Body('role') role: string) {
     return this.adminService.updateUserRole(id, role);
   }
 
   @Get('users/:id/listings')
+  @RequirePermission('user:read')
   getUserListings(
     @Param('id') id: string,
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
@@ -138,16 +153,19 @@ export class AdminController {
 
   // RBAC endpoints for admin dashboard
   @Get('rbac/roles')
+  @RequirePermission('system:manage')
   getAllRoles() {
     return this.adminService.getAllRoles();
   }
 
   @Get('rbac/roles/user/:userId')
+  @RequirePermission('user:read')
   getUserRoles(@Param('userId') userId: string) {
     return this.adminService.getUserRoles(userId);
   }
 
   @Post('rbac/roles/assign')
+  @RequirePermission('user:manage')
   assignRole(
     @Body() body: { userId: string; roleId: string; expiresAt?: string },
     @Request() req: any,
@@ -161,16 +179,19 @@ export class AdminController {
   }
 
   @Delete('rbac/roles/remove')
+  @RequirePermission('user:manage')
   removeRole(@Body() body: { userId: string; roleId: string }) {
     return this.adminService.removeRole(body.userId, body.roleId);
   }
 
   @Get('rbac/permissions')
+  @RequirePermission('system:manage')
   getAllPermissions() {
     return this.adminService.getAllPermissions();
   }
 
   @Get('rbac/audit-logs')
+  @RequirePermission('system:logs')
   getAuditLogs(
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 20,
   ) {
@@ -179,21 +200,25 @@ export class AdminController {
 
   // Analytics and reports
   @Get('analytics/overview')
+  @RequirePermission('admin:dashboard')
   getAnalyticsOverview() {
     return this.adminService.getAnalyticsOverview();
   }
 
   @Get('analytics/listings')
+  @RequirePermission('admin:dashboard')
   getListingAnalytics(@Query('period') period: string = '30d') {
     return this.adminService.getListingAnalytics(period);
   }
 
   @Get('analytics/users')
+  @RequirePermission('admin:dashboard')
   getUserAnalytics(@Query('period') period: string = '30d') {
     return this.adminService.getUserAnalytics(period);
   }
 
   @Post('rbac/seed')
+  @RequirePermission('system:manage')
   seedRbacData() {
     return this.adminService.seedRbacData();
   }

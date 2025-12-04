@@ -4,9 +4,13 @@ import { FavoritesController } from './favorites.controller';
 import { FavoritesService } from './favorites.service';
 import { Favorite } from '../../entities/favorite.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Favorite, ListingDetail])],
+  imports: [
+    TypeOrmModule.forFeature([Favorite, ListingDetail]),
+    RecommendationsModule,
+  ],
   controllers: [FavoritesController],
   providers: [FavoritesService],
   exports: [FavoritesService],

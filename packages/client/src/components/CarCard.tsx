@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import {
   Car,
   MapPin,
-  Calendar,
   Fuel,
   Eye,
   Heart,
@@ -19,20 +18,23 @@ import {
   DialogTitle,
   DialogFooter,
 } from "./ui/Dialog";
-import { formatPrice, formatNumber, formatRelativeTime } from "../lib/utils";
+import { formatPrice, formatNumber } from "../lib/utils";
 import { FavoritesService } from "../services/favorites.service";
 import { ChatService } from "../services/chat.service";
 import { useAuthStore } from "../store/auth";
 import toast from "react-hot-toast";
-import type { ListingDetail } from "../types";
+import type { ListingDetail, ListingPromotion } from "../types";
+import { PromotionBadge } from "./promotions/PromotionBadge";
 
 interface CarCardProps {
   listing: ListingDetail;
   showActions?: boolean;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onMarkAsSold?: (id: string) => void;
+  onMarkAsSold?: (listing: ListingDetail) => void;
   onFavoriteChange?: (listingId: string, isFavorite: boolean) => void;
+  onPromote?: () => void;
+  promotion?: ListingPromotion;
 }
 
 export function CarCard({
@@ -42,19 +44,23 @@ export function CarCard({
   onDelete,
   onMarkAsSold,
   onFavoriteChange,
+  onPromote,
+  promotion,
 }: CarCardProps) {
   const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPhoneNumber, setShowPhoneNumber] = useState(false);
+  const [favoriteCount, setFavoriteCount] = useState(listing.favoriteCount);
 
   const primaryImage =
     listing.carDetail.images.find((img) => img.isPrimary) ||
     listing.carDetail.images[0];
 
-  // Check if listing is favorited
+  // Check if listing is favorited and sync favoriteCount
   useEffect(() => {
+    setFavoriteCount(listing.favoriteCount);
     if (isAuthenticated && user) {
       FavoritesService.checkIfFavorite(listing.id)
         .then((result) => {
@@ -68,7 +74,7 @@ export function CarCard({
           setIsFavorite(false);
         });
     }
-  }, [listing.id, isAuthenticated, user]);
+  }, [listing.id, listing.favoriteCount, isAuthenticated, user]);
 
   const handleToggleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -86,11 +92,13 @@ export function CarCard({
       if (isFavorite) {
         await FavoritesService.removeFromFavorites(listing.id);
         setIsFavorite(false);
+        setFavoriteCount((prev) => Math.max(0, prev - 1));
         toast.success("Removed from favorites");
         onFavoriteChange?.(listing.id, false);
       } else {
         await FavoritesService.addToFavorites(listing.id);
         setIsFavorite(true);
+        setFavoriteCount((prev) => prev + 1);
         toast.success("Added to favorites");
         onFavoriteChange?.(listing.id, true);
       }
@@ -205,7 +213,17 @@ export function CarCard({
                 Pending Review
               </span>
             )}
+            {listing.status === "rejected" && (
+              <span className="bg-red-600 text-white px-2 py-1 rounded text-xs font-medium">
+                Rejected
+              </span>
+            )}
           </div>
+
+          {/* Promotion Badge */}
+          {promotion && promotion.status === "active" && (
+            <PromotionBadge promotion={promotion} />
+          )}
 
           {/* View Count */}
           <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs flex items-center">
@@ -226,6 +244,18 @@ export function CarCard({
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 mt-1">
                 ✓ Sold
               </span>
+            )}
+            {listing.status === "rejected" && (
+              <div className="mt-1 space-y-1">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  ✗ Rejected
+                </span>
+                {listing.rejectionReason && (
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 mt-1">
+                    <strong>Reason:</strong> {listing.rejectionReason}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -264,15 +294,11 @@ export function CarCard({
           </div>
 
           {/* Meta Info */}
-          <div className="flex items-center justify-between text-xs text-gray-500 flex-shrink-0">
-            <div className="flex items-center">
-              <Calendar className="w-3 h-3 mr-1" />
-              {formatRelativeTime(listing.createdAt)}
-            </div>
+          <div className="flex items-center justify-end text-xs text-gray-500 flex-shrink-0">
             <div className="flex items-center space-x-3">
               <div className="flex items-center">
                 <Heart className="w-3 h-3 mr-1" />
-                {listing.favoriteCount}
+                {favoriteCount}
               </div>
               <div className="flex items-center">
                 <Eye className="w-3 h-3 mr-1" />
@@ -357,16 +383,30 @@ export function CarCard({
                   Delete
                 </Button>
                 {listing.status === "approved" && (
+                  <>
+                    {onPromote && (
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-yellow-500 text-yellow-900 hover:bg-yellow-600"
+                        onClick={(e: React.MouseEvent) => {
+                          e.preventDefault();
+                          onPromote();
+                        }}
+                      >
+                        Promote
+                      </Button>
+                    )}
                   <Button
                     size="sm"
                     className="flex-1 bg-green-600 text-white hover:bg-green-700"
                     onClick={(e: React.MouseEvent) => {
                       e.preventDefault();
-                      onMarkAsSold?.(listing.id);
+                      onMarkAsSold?.(listing);
                     }}
                   >
                     Mark as Sold
                   </Button>
+                  </>
                 )}
               </div>
             )}

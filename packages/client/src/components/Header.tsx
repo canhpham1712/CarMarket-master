@@ -10,13 +10,19 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "../store/auth";
 import { useNotifications } from "../contexts/NotificationContext";
+import { usePermissions } from "../hooks/usePermissions";
 import { Button } from "./ui/Button";
 import { Avatar } from "./ui/Avatar";
+import { NotificationBell } from "./NotificationBell";
 
 export function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
-  const { unreadCount } = useNotifications();
+  const { chatUnreadCount } = useNotifications();
+  const { hasPermission, hasRole } = usePermissions();
   const navigate = useNavigate();
+  
+  // Check if user can create listings (seller permission)
+  const canCreateListings = hasPermission('listing:create') || hasRole('seller');
 
   const handleLogout = () => {
     logout();
@@ -43,18 +49,22 @@ export function Header() {
             </Link>
             {isAuthenticated && (
               <>
-                <Link
-                  to="/sell-car"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Sell Your Car
-                </Link>
-                <Link
-                  to="/my-listings"
-                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  My Listings
-                </Link>
+                {canCreateListings && (
+                  <>
+                    <Link
+                      to="/sell-car"
+                      className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      Sell Your Car
+                    </Link>
+                    <Link
+                      to="/my-listings"
+                      className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      My Listings
+                    </Link>
+                  </>
+                )}
               </>
             )}
           </nav>
@@ -63,12 +73,16 @@ export function Header() {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/sell-car">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Sell Car
-                  </Link>
-                </Button>
+                {canCreateListings && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/sell-car">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Sell Car
+                    </Link>
+                  </Button>
+                )}
+
+                <NotificationBell />
 
                 <div className="relative group">
                   <button className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
@@ -108,20 +122,71 @@ export function Header() {
                     >
                       <MessageCircle className="h-4 w-4 mr-3" />
                       Messages
-                      {unreadCount > 0 && (
+                      {chatUnreadCount > 0 && (
                         <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                          {unreadCount}
+                          {chatUnreadCount}
                         </span>
                       )}
                     </Link>
 
-                    {user?.role === "admin" && (
+                    {(hasPermission('admin:dashboard') || hasRole('admin') || hasRole('super_admin')) && (
                       <Link
                         to="/admin/dashboard"
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
                         <Shield className="h-4 w-4 mr-3" />
+                        Admin Panel
+                      </Link>
+                    )}
+
+                    {/* Analytics Dashboards */}
+                    {hasRole('super_admin') && (
+                      <Link
+                        to="/dashboard/super-admin"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Shield className="h-4 w-4 mr-3" />
+                        Super Admin Dashboard
+                      </Link>
+                    )}
+
+                    {(hasRole('admin') || hasPermission('dashboard:admin')) && (
+                      <Link
+                        to="/dashboard/admin"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Shield className="h-4 w-4 mr-3" />
                         Admin Dashboard
+                      </Link>
+                    )}
+
+                    {(hasRole('moderator') || hasRole('admin') || hasRole('super_admin') || hasPermission('dashboard:moderator')) && (
+                      <Link
+                        to="/dashboard/moderator"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Shield className="h-4 w-4 mr-3" />
+                        Moderator Dashboard
+                      </Link>
+                    )}
+
+                    {(hasRole('seller') || hasPermission('dashboard:seller')) && (
+                      <Link
+                        to="/dashboard/seller"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Shield className="h-4 w-4 mr-3" />
+                        Seller Dashboard
+                      </Link>
+                    )}
+
+                    {(hasRole('buyer') || hasPermission('dashboard:buyer')) && (
+                      <Link
+                        to="/dashboard/buyer"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Shield className="h-4 w-4 mr-3" />
+                        Buyer Dashboard
                       </Link>
                     )}
 

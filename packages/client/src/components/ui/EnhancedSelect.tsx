@@ -203,7 +203,7 @@ export const EnhancedSelect = React.forwardRef<
         {isOpen && (
           <div
             className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg overflow-hidden"
-            style={{ maxHeight }}
+            style={{ maxHeight: maxHeight || "200px" }}
           >
             {/* Search Input */}
             {searchable && (
@@ -223,35 +223,43 @@ export const EnhancedSelect = React.forwardRef<
             )}
 
             {/* Options List */}
-            <div className="bg-white max-h-48 overflow-y-auto">
-              {filteredOptions.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-gray-500">
-                  No options found
-                </div>
-              ) : (
-                filteredOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleOptionSelect(option.value)}
-                    disabled={option.disabled}
-                    className={cn(
-                      "w-full px-3 py-2 text-left text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      selectedValues.includes(option.value)
-                        ? "bg-blue-50 text-blue-900"
-                        : "text-gray-900"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>{option.label}</span>
-                      {selectedValues.includes(option.value) && (
-                        <Check className="h-4 w-4 text-blue-600" />
+            <div 
+              className="bg-white overflow-y-auto"
+              style={{ 
+                maxHeight: searchable ? "calc(200px - 45px)" : "200px",
+                scrollPaddingBottom: "8px"
+              }}
+            >
+              <div className="pb-2">
+                {filteredOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    No options found
+                  </div>
+                ) : (
+                  filteredOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleOptionSelect(option.value)}
+                      disabled={option.disabled}
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none",
+                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                        selectedValues.includes(option.value)
+                          ? "bg-blue-50 text-blue-900"
+                          : "text-gray-900"
                       )}
-                    </div>
-                  </button>
-                ))
-              )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{option.label}</span>
+                        {selectedValues.includes(option.value) && (
+                          <Check className="h-4 w-4 text-blue-600" />
+                        )}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -11,9 +11,8 @@ import {
 } from '@nestjs/common';
 import { MetadataService } from './metadata.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { LegacyUserRole } from '../../entities/user.entity';
+import { PermissionGuard } from '../../common/guards/permission.guard';
+import { RequirePermission } from '../../common/decorators/permission.decorator';
 import { MetadataType } from '../../entities/car-metadata.entity';
 
 @Controller('metadata')
@@ -77,16 +76,16 @@ export class MetadataController {
     return this.metadataService.getAllMetadata();
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Post('seed')
   seedInitialData() {
     return this.metadataService.seedInitialData();
   }
 
   // Admin CRUD operations for car makes
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Post('makes')
   createMake(
     @Body() data: { name: string; displayName?: string; logoUrl?: string },
@@ -98,8 +97,8 @@ export class MetadataController {
     );
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Put('makes/:id')
   updateMake(
     @Param('id') id: string,
@@ -114,15 +113,15 @@ export class MetadataController {
     return this.metadataService.updateMake(id, data);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Delete('makes/:id')
   deleteMake(@Param('id') id: string) {
     return this.metadataService.deleteMake(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Patch('makes/:id/toggle-status')
   toggleMakeStatus(
     @Param('id') id: string,
@@ -132,8 +131,8 @@ export class MetadataController {
   }
 
   // Admin CRUD operations for car models
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Post('models')
   createModel(
     @Body() data: { makeId: string; name: string; displayName?: string },
@@ -145,8 +144,8 @@ export class MetadataController {
     );
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Put('models/:id')
   updateModel(
     @Param('id') id: string,
@@ -155,16 +154,16 @@ export class MetadataController {
     return this.metadataService.updateModel(id, data);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Delete('models/:id')
   deleteModel(@Param('id') id: string) {
     return this.metadataService.deleteModel(id);
   }
 
   // Admin CRUD operations for metadata
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Post('metadata')
   createMetadata(
     @Body()
@@ -183,8 +182,8 @@ export class MetadataController {
     );
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Put('metadata/:id')
   updateMetadata(
     @Param('id') id: string,
@@ -199,15 +198,15 @@ export class MetadataController {
     return this.metadataService.updateMetadata(id, data);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Delete('metadata/:id')
   deleteMetadata(@Param('id') id: string) {
     return this.metadataService.deleteMetadata(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(LegacyUserRole.ADMIN)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission('system:manage')
   @Get('admin/all')
   getAllMetadataForAdmin() {
     return this.metadataService.getAllMetadataForAdmin();

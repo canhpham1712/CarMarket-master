@@ -20,6 +20,7 @@ import { Favorite } from '../../entities/favorite.entity';
 import { ChatConversation } from '../../entities/chat-conversation.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
 import { FAQ } from '../../entities/faq.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { FAQ } from '../../entities/faq.entity';
       ChatMessage,
       FAQ,
     ]),
+    NotificationsModule,
   ],
   controllers: [AssistantController],
   providers: [

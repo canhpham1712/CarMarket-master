@@ -10,6 +10,7 @@ import { ChatMessage } from '../../entities/chat-message.entity';
 import { ListingDetail } from '../../entities/listing-detail.entity';
 import { User } from '../../entities/user.entity';
 import { UsersModule } from '../users/users.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -30,9 +31,10 @@ import { UsersModule } from '../users/users.module';
       inject: [ConfigService],
     }),
     UsersModule,
+    NotificationsModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],
-  exports: [ChatService],
+  exports: [ChatService, ChatGateway],
 })
 export class ChatModule {}

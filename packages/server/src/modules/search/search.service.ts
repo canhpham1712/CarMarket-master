@@ -215,8 +215,16 @@ export class SearchService {
     // Execute query
     const [listings, total] = await queryBuilder.getManyAndCount();
 
+    // Transform decimal fields to numbers for JSON serialization
+    const transformedListings = listings.map((listing) => ({
+      ...listing,
+      latitude: listing.latitude != null ? Number(listing.latitude) : null,
+      longitude: listing.longitude != null ? Number(listing.longitude) : null,
+      price: Number(listing.price),
+    }));
+
     return {
-      listings,
+      listings: transformedListings,
       pagination: {
         page: sanitizedPage,
         limit: sanitizedLimit,

@@ -17,7 +17,7 @@ import type { ChatConversation } from "../services/chat.service";
 
 export function ConversationsListPage() {
   const { user, isAuthenticated } = useAuthStore();
-  const { clearUnreadCount } = useNotifications();
+  const { clearChatUnreadCount } = useNotifications();
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,16 +28,6 @@ export function ConversationsListPage() {
     total: 0,
     totalPages: 0,
   });
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchConversations();
-      // Clear unread count when viewing conversations
-      clearUnreadCount();
-    } else {
-      setLoading(false);
-    }
-  }, [isAuthenticated, pagination.page, pagination.limit]);
 
   const fetchConversations = async () => {
     try {
@@ -56,23 +46,44 @@ export function ConversationsListPage() {
     }
   };
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchConversations();
+      // Clear unread count when viewing conversations
+      clearChatUnreadCount();
+    } else {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, pagination.page, pagination.limit]);
+
   const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    try {
+      if (!dateString) return "No messages";
+      
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Invalid date";
+      
+      const now = new Date();
+      const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return "Just now";
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400)
-      return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 2592000)
-      return `${Math.floor(diffInSeconds / 86400)}d ago`;
+      if (diffInSeconds < 60) return "Just now";
+      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+      if (diffInSeconds < 86400)
+        return `${Math.floor(diffInSeconds / 3600)}h ago`;
+      if (diffInSeconds < 2592000)
+        return `${Math.floor(diffInSeconds / 86400)}d ago`;
 
-    return date.toLocaleDateString();
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Unknown";
+    }
   };
 
   const getOtherUser = (conversation: ChatConversation) => {
-    return user?.id === conversation.buyer.id
+    if (!user || !conversation) return null;
+    return user.id === conversation.buyer.id
       ? conversation.seller
       : conversation.buyer;
   };
@@ -161,6 +172,8 @@ export function ConversationsListPage() {
           <div className="space-y-4">
             {conversations.map((conversation) => {
               const otherUser = getOtherUser(conversation);
+              if (!otherUser || !conversation) return null;
+              
               return (
                 <Card
                   key={conversation.id}
@@ -183,7 +196,7 @@ export function ConversationsListPage() {
                                 ? `http://localhost:3000${conversation.buyer.profileImage}`
                                 : undefined
                           }
-                          alt={`${otherUser.firstName} ${otherUser.lastName}`}
+                          alt={`${otherUser.firstName || ""} ${otherUser.lastName || ""}`}
                           size="md"
                         />
                       </div>
@@ -203,11 +216,11 @@ export function ConversationsListPage() {
                         </div>
 
                         <p className="text-sm text-gray-600 truncate mt-1">
-                          About: {conversation.listing.title}
+                          About: {conversation.listing?.title || "Unknown listing"}
                         </p>
 
                         <p className="text-sm text-gray-500 truncate mt-1">
-                          {conversation.lastMessage}
+                          {conversation.lastMessage || "No messages yet"}
                         </p>
                       </div>
 

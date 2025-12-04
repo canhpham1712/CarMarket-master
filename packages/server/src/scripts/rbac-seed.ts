@@ -53,6 +53,7 @@ export class RbacSeed {
       { name: 'admin:dashboard', description: 'Access admin dashboard', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
       { name: 'admin:users', description: 'Manage users in admin', action: PermissionAction.MANAGE, resource: PermissionResource.ADMIN },
       { name: 'admin:listings', description: 'Manage listings in admin', action: PermissionAction.MANAGE, resource: PermissionResource.ADMIN },
+      { name: 'admin:metadata', description: 'Manage metadata in admin', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
       { name: 'admin:logs', description: 'View system logs', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
 
       // Chat permissions
@@ -67,6 +68,20 @@ export class RbacSeed {
       // System permissions
       { name: 'system:logs', description: 'View system logs', action: PermissionAction.READ, resource: PermissionResource.LOGS },
       { name: 'system:manage', description: 'Manage system settings', action: PermissionAction.MANAGE, resource: PermissionResource.SYSTEM },
+
+      // Analytics permissions
+      { name: 'analytics:view', description: 'View analytics', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
+      { name: 'analytics:revenue', description: 'View revenue data', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
+      { name: 'analytics:users', description: 'View user analytics', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
+      { name: 'analytics:listings', description: 'View listing analytics', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
+
+      // Dashboard permissions
+      { name: 'dashboard:admin', description: 'Access admin dashboard', action: PermissionAction.READ, resource: PermissionResource.ADMIN },
+      { name: 'dashboard:seller', description: 'Access seller dashboard', action: PermissionAction.READ, resource: PermissionResource.USER },
+      { name: 'dashboard:buyer', description: 'Access buyer dashboard', action: PermissionAction.READ, resource: PermissionResource.USER },
+
+      // Monitoring permissions
+      { name: 'monitoring:view', description: 'View system monitoring and real-time metrics', action: PermissionAction.READ, resource: PermissionResource.SYSTEM },
     ];
 
     const permissions: Permission[] = [];
@@ -76,10 +91,12 @@ export class RbacSeed {
       
       if (!permission) {
         permission = permissionRepository.create(data);
-        await permissionRepository.save(permission);
+        permission = await permissionRepository.save(permission);
       }
       
-      permissions.push(permission);
+      if (permission) {
+        permissions.push(permission);
+      }
     }
 
     return permissions;
@@ -105,7 +122,11 @@ export class RbacSeed {
           p.name.startsWith('user:') || 
           p.name.startsWith('listing:') || 
           p.name.startsWith('admin:') ||
-          p.name.startsWith('system:logs')
+          p.name.startsWith('system:logs') ||
+          p.name === 'system:manage' || // Add system:manage for metadata management
+          p.name.startsWith('analytics:') ||
+          p.name === 'dashboard:admin' ||
+          p.name === 'monitoring:view'
         ),
       },
       {
@@ -117,7 +138,9 @@ export class RbacSeed {
           p.name.startsWith('listing:read') ||
           p.name.startsWith('listing:update') ||
           p.name.startsWith('chat:') ||
-          p.name.startsWith('user:read')
+          p.name.startsWith('user:read') ||
+          p.name === 'analytics:view' ||
+          p.name === 'analytics:listings'
         ),
       },
       {
@@ -130,7 +153,11 @@ export class RbacSeed {
           p.name.startsWith('transaction:') ||
           p.name.startsWith('chat:send') ||
           p.name.startsWith('chat:read') ||
-          p.name.startsWith('assistant:use')
+          p.name.startsWith('assistant:use') ||
+          p.name === 'analytics:view' ||
+          p.name === 'analytics:revenue' ||
+          p.name === 'analytics:listings' ||
+          p.name === 'dashboard:seller'
         ),
       },
       {
@@ -146,7 +173,9 @@ export class RbacSeed {
           p.name.startsWith('chat:read') ||
           p.name.startsWith('assistant:use') ||
           p.name === 'user:read' ||
-          p.name === 'user:update'
+          p.name === 'user:update' ||
+          p.name === 'analytics:view' ||
+          p.name === 'dashboard:buyer'
         ),
       },
     ];
