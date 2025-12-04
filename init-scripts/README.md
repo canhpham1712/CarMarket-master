@@ -158,6 +158,11 @@ DROP USER carmarket_user;
 psql -U postgres -f 00-setup-database.sql
 ```
 
+### Read Logs of Data Seeding
+``` bash
+docker logs -f carmarket-postgres
+```
+
 ## Next Steps
 
 After setting up the database:
