@@ -80,3 +80,10 @@ export function getMediaUrl(path?: string | null): string | undefined {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
 }
+
+export const CAR_PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1704340142770-b52988e5b6eb?q=80&w=2000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D";
+
+export const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  e.currentTarget.src = CAR_PLACEHOLDER_IMAGE;
+  e.currentTarget.onerror = null; // Ngăn lặp vô hạn nếu ảnh placeholder cũng lỗi
+};

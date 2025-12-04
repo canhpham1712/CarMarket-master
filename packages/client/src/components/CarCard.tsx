@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "./ui/Dialog";
-import { formatPrice, formatNumber } from "../lib/utils";
+import { formatPrice, formatNumber, handleImageError, CAR_PLACEHOLDER_IMAGE } from "../lib/utils";
 import { FavoritesService } from "../services/favorites.service";
 import { ChatService } from "../services/chat.service";
 import { useAuthStore } from "../store/auth";
@@ -186,9 +186,16 @@ export function CarCard({
           )}
           {primaryImage ? (
             <img
-              src={`http://localhost:3000${primaryImage.url}`}
+              src={
+                primaryImage
+                  ? (primaryImage.url.startsWith('http') 
+                      ? primaryImage.url 
+                      : `http://localhost:3000${primaryImage.url}`)
+                  : CAR_PLACEHOLDER_IMAGE
+              }
               alt={listing.title}
               className="w-full h-full object-cover"
+              onError={handleImageError}
             />
           ) : (
             <div className="flex items-center justify-center h-full">

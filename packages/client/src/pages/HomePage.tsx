@@ -28,7 +28,7 @@ import { ListingService } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { getMediaUrl } from "../lib/utils";
+import { getMediaUrl, handleImageError, CAR_PLACEHOLDER_IMAGE } from "../lib/utils";
 
 const MAP_VIEW_FETCH_LIMIT = 500;
 
@@ -433,7 +433,7 @@ export function HomePage() {
         filters.yearMin ||
         filters.yearMax ||
         (filters.priceMin && filters.priceMin > 0) ||
-        (filters.priceMax && filters.priceMax < 100000000) ||
+        (filters.priceMax && filters.priceMax < 100000000000) ||
         filters.mileageMax ||
         filters.fuelType ||
         filters.transmission ||
@@ -665,9 +665,14 @@ export function HomePage() {
                           <div className="h-12 w-16 flex-shrink-0 bg-gray-200 rounded overflow-hidden mr-4">
                             {item.thumbnail ? (
                               <img 
-                              src={getMediaUrl(item.thumbnail)}
+                              src={
+                                item.thumbnail.startsWith('http') 
+                                  ? item.thumbnail 
+                                  : getMediaUrl(item.thumbnail)
+                              }
                                 alt={item.title}
                                 className="h-full w-full object-cover"
+                                onError={handleImageError}
                               />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center text-gray-400">

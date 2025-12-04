@@ -36,7 +36,7 @@ import { ListingService } from "../services/listing.service";
 import { FavoritesService } from "../services/favorites.service";
 import { ChatService } from "../services/chat.service";
 import { useAuthStore } from "../store/auth";
-import { formatPrice, formatNumber, formatRelativeTime } from "../lib/utils";
+import { formatPrice, formatNumber, formatRelativeTime, handleImageError, CAR_PLACEHOLDER_IMAGE } from "../lib/utils";
 import type { ListingDetail } from "../types";
 import toast from "react-hot-toast";
 import { CommentSection } from "../components/comments/CommentSection";
@@ -339,9 +339,14 @@ export function CarDetailsPage() {
           onClick={() => openImageModal(selectedImageIndex)}
         >
           <img
-            src={`http://localhost:3000${currentImage.url}`}
+            src={
+              currentImage.url.startsWith('http') 
+                ? currentImage.url 
+                : `http://localhost:3000${currentImage.url}`
+            }
             alt={listing.title}
             className="w-full h-full object-cover"
+            onError={handleImageError} // <--- THÊM DÒNG NÀY
           />
         </div>
       )}
@@ -362,9 +367,14 @@ export function CarDetailsPage() {
                 }`}
               >
                 <img
-                  src={`http://localhost:3000${image.url}`}
+                  src={
+                    image.url.startsWith('http') 
+                      ? image.url 
+                      : `http://localhost:3000${image.url}`
+                  }
                   alt={`Car image ${index + 1}`}
                   className="w-full h-full object-cover"
+                  onError={handleImageError} // <--- THÊM DÒNG NÀY
                 />
               </button>
             ))}
@@ -914,7 +924,11 @@ export function CarDetailsPage() {
           >
             <img
               ref={imageRef}
-              src={`http://localhost:3000${images[modalImageIndex]?.url}`}
+              src={
+                images[modalImageIndex]?.url.startsWith('http')
+                  ? images[modalImageIndex]?.url
+                  : `http://localhost:3000${images[modalImageIndex]?.url}`
+              }
               alt={`Car image ${modalImageIndex + 1}`}
               className="max-w-full max-h-[90vh] object-contain transition-transform duration-200"
               style={{
@@ -922,6 +936,7 @@ export function CarDetailsPage() {
                 transformOrigin: "center center",
               }}
               draggable={false}
+              onError={handleImageError}
             />
           </div>
         </div>
