@@ -6,6 +6,7 @@ import {
   IsOptional,
   Matches,
   ValidateIf,
+  IsBoolean,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -36,4 +37,8 @@ export class RegisterDto {
     message: 'Please provide a valid phone number',
   })
   phoneNumber?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'wantsToSell must be a boolean' })
+  wantsToSell?: boolean;
 }

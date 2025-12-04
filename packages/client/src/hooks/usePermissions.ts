@@ -46,8 +46,7 @@ export function usePermissions() {
       if (user?.roles && Array.isArray(user.roles)) {
         return user.roles.includes(roleName);
       }
-      // Fallback to legacy role check
-      return user?.role === roleName;
+      return false;
     };
   }, [user]);
 
@@ -59,8 +58,7 @@ export function usePermissions() {
       if (user?.roles && Array.isArray(user.roles)) {
         return roleList.some(role => user.roles!.includes(role));
       }
-      // Fallback to legacy role check
-      return roleList.includes(user?.role || '');
+      return false;
     };
   }, [user]);
 
@@ -72,8 +70,7 @@ export function usePermissions() {
       if (user?.roles && Array.isArray(user.roles)) {
         return user.roles.includes('admin') || user.roles.includes('super_admin');
       }
-      // Fallback to legacy role check
-      return user?.role === 'admin';
+      return false;
     };
   }, [user]);
 
@@ -91,8 +88,7 @@ export function usePermissions() {
     if (user?.roles && Array.isArray(user.roles)) {
       return user.roles;
     }
-    // Fallback to legacy role
-    return user?.role ? [user.role] : [];
+    return [];
   }, [user]);
 
   return {

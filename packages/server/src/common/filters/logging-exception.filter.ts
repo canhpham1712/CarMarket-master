@@ -97,7 +97,6 @@ export class LoggingExceptionFilter implements ExceptionFilter {
         headers: this.sanitizeHeaders(request.headers),
         statusCode: status,
         errorMessage: message,
-        userRole: user?.role,
       };
 
       if (exception instanceof Error) {

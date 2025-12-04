@@ -35,14 +35,14 @@ export function RbacManagement() {
         return;
       }
       
-      if (user.role !== 'admin') {
-        console.error('User is not admin:', user.role);
+      if (!isAdmin(user)) {
+        console.error('User is not admin');
         toast.error('Admin access required');
         return;
       }
       
       const token = accessToken || localStorage.getItem('accessToken');
-      console.log('Auth state:', { isAuthenticated, userRole: user.role, hasToken: !!token });
+      console.log('Auth state:', { isAuthenticated, userRoles: user?.roles, hasToken: !!token });
       
       const data = await apiClient.get('/admin/users', { page: 1, limit: 50 }) as any;
       setUsers(data.users || []);
@@ -139,11 +139,11 @@ export function RbacManagement() {
   useEffect(() => {
     console.log('RbacManagement mounted. Auth state:', { 
       isAuthenticated, 
-      userRole: user?.role, 
+      userRoles: user?.roles, 
       hasToken: !!accessToken 
     });
     
-    if (isAuthenticated && user?.role === 'admin') {
+    if (isAuthenticated && isAdmin(user)) {
       fetchUsers();
       fetchRoles();
       fetchPermissions();
@@ -260,8 +260,7 @@ export function RbacManagement() {
                             <h3 className="font-semibold">{user.firstName} {user.lastName}</h3>
                             <p className="text-sm text-gray-600">{user.email}</p>
                             <p className="text-xs text-gray-500">
-                              Status: {user.isActive ? 'Active' : 'Inactive'} | 
-                              Legacy Role: {user.role || 'None'}
+                              Status: {user.isActive ? 'Active' : 'Inactive'}
                             </p>
                           </div>
                         </div>

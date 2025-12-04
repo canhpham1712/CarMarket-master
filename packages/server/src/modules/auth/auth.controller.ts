@@ -79,12 +79,40 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('session-check')
+  async checkSession(@Request() req: any): Promise<{
+    valid: boolean;
+    requiresRefresh: boolean;
+    reason?: string;
+  }> {
+    console.log('[AuthController] Session check requested for user:', req.user.id);
+    const result = await this.authService.checkSessionValidity(
+      req.user.id, 
+      req.headers.authorization?.replace('Bearer ', '')
+    );
+    console.log('[AuthController] Session check result:', result);
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(): Promise<{ message: string }> {
     // With JWT, logout is handled on the client side by removing the token
     // In a more sophisticated setup, you might maintain a blacklist of tokens
     return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('become-seller')
+  @HttpCode(HttpStatus.OK)
+  @LogAction({
+    category: LogCategory.AUTHENTICATION,
+    message: 'Become Seller',
+    description: 'User upgraded to seller role',
+  })
+  async becomeSeller(@Request() req: any): Promise<AuthResponse> {
+    return this.authService.becomeSeller(req.user.id);
   }
 
   // Google OAuth routes

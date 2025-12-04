@@ -7,9 +7,11 @@ import {
   Shield,
   Heart,
   MessageCircle,
+  Bell,
+  Settings,
 } from "lucide-react";
 import { useAuthStore } from "../store/auth";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../hooks/useNotifications";
 import { usePermissions } from "../hooks/usePermissions";
 import { Button } from "./ui/Button";
 import { Avatar } from "./ui/Avatar";
@@ -49,7 +51,7 @@ export function Header() {
             </Link>
             {isAuthenticated && (
               <>
-                {canCreateListings && (
+                {canCreateListings ? (
                   <>
                     <Link
                       to="/sell-car"
@@ -64,6 +66,13 @@ export function Header() {
                       My Listings
                     </Link>
                   </>
+                ) : (
+                  <Link
+                    to="/become-seller"
+                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Become a Seller
+                  </Link>
                 )}
               </>
             )}
@@ -73,11 +82,18 @@ export function Header() {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                {canCreateListings && (
+                {canCreateListings ? (
                   <Button variant="outline" size="sm" asChild>
                     <Link to="/sell-car">
                       <Plus className="h-4 w-4 mr-2" />
                       Sell Car
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/become-seller">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Become Seller
                     </Link>
                   </Button>
                 )}
@@ -129,6 +145,24 @@ export function Header() {
                       )}
                     </Link>
 
+                    <Link
+                      to="/settings"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Settings className="h-4 w-4 mr-3" />
+                      Settings
+                    </Link>
+
+                    {!canCreateListings && (
+                      <Link
+                        to="/become-seller"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <Plus className="h-4 w-4 mr-3" />
+                        Become a Seller
+                      </Link>
+                    )}
+
                     {(hasPermission('admin:dashboard') || hasRole('admin') || hasRole('super_admin')) && (
                       <Link
                         to="/admin/dashboard"
@@ -177,16 +211,6 @@ export function Header() {
                       >
                         <Shield className="h-4 w-4 mr-3" />
                         Seller Dashboard
-                      </Link>
-                    )}
-
-                    {(hasRole('buyer') || hasPermission('dashboard:buyer')) && (
-                      <Link
-                        to="/dashboard/buyer"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        <Shield className="h-4 w-4 mr-3" />
-                        Buyer Dashboard
                       </Link>
                     )}
 

@@ -28,6 +28,8 @@ import { ListingService } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
 import { LocationPicker } from "../components/LocationPicker";
+import { usePermissions } from "../hooks/usePermissions";
+import { Link } from "react-router-dom";
 
 const listingSchema = z.object({
   // Listing Information
@@ -91,6 +93,10 @@ export function SellCarPage() {
   } | null>(null);
   const navigate = useNavigate();
   const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
+  const { hasPermission, hasRole } = usePermissions();
+  
+  // Check if user has seller permission
+  const canCreateListings = hasPermission('listing:create') || hasRole('seller');
 
   const {
     register,
@@ -328,6 +334,54 @@ export function SellCarPage() {
       setIsUploading(false);
     }
   };
+
+  // Check if user has seller permission
+  if (!canCreateListings) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Card className="border-2 border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-2xl text-center">
+              Become a Seller to List Your Car
+            </CardTitle>
+            <CardDescription className="text-center text-base">
+              You need to be a seller to create car listings on CarMarket
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-gray-700">
+                Upgrade your account to seller status and start listing your cars today!
+              </p>
+              <ul className="text-left max-w-md mx-auto space-y-2 text-gray-600">
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>
+                  Create unlimited car listings
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>
+                  Manage your listings and sales
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>
+                  Connect with buyers directly
+                </li>
+              </ul>
+            </div>
+            <div className="pt-4 flex justify-center">
+              <Button
+                onClick={() => navigate("/become-seller")}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                size="lg"
+              >
+                Become a Seller
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (metadataLoading) {
     return (

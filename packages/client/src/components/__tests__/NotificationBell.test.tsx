@@ -2,10 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NotificationBell } from '../NotificationBell';
 
-// Mock NotificationContext
+// Mock useNotifications hook
 const mockUseNotifications = vi.fn();
-vi.mock('../../contexts/NotificationContext', () => ({
+vi.mock('../../hooks/useNotifications', () => ({
   useNotifications: () => mockUseNotifications(),
+}));
+
+// Mock NotificationProvider
+vi.mock('../../contexts/NotificationContext', () => ({
   NotificationProvider: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),

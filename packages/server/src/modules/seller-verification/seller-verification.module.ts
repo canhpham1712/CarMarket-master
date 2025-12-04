@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SellerVerificationController } from './seller-verification.controller';
 import { SellerVerificationService } from './seller-verification.service';
@@ -18,7 +18,7 @@ import { MockSmsService, SmsServiceFactory } from './services/sms.service';
       PhoneVerificationOtp,
       User, // Added to access user data for hybrid approach
     ]),
-    RbacModule,
+    forwardRef(() => RbacModule), // Use forwardRef to break circular dependency
   ],
   controllers: [SellerVerificationController],
   providers: [

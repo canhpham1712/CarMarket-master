@@ -29,6 +29,11 @@ export function Select({ value, onValueChange, children, className = '' }: Selec
   const [selectedValue, setSelectedValue] = useState(value || '');
   const selectRef = useRef<HTMLDivElement>(null);
 
+  // Sync internal state with external value prop
+  useEffect(() => {
+    setSelectedValue(value || '');
+  }, [value]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
@@ -40,26 +45,38 @@ export function Select({ value, onValueChange, children, className = '' }: Selec
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleItemClick = (itemValue: string) => {
+  const handleItemClick = (itemValue: string, itemLabel: string) => {
     setSelectedValue(itemValue);
     onValueChange?.(itemValue);
     setIsOpen(false);
   };
 
-  const selectedItem = React.Children.toArray(children)
-    .find((child: any) => child?.props?.value === selectedValue);
+  // Find the selected item's label
+  let selectedLabel = '';
+  React.Children.forEach(children, (child: any) => {
+    if (child?.type?.displayName === 'SelectContent' || child?.type?.name === 'SelectContent') {
+      React.Children.forEach(child.props.children, (item: any) => {
+        if (item?.props?.value === selectedValue) {
+          selectedLabel = typeof item.props.children === 'string' 
+            ? item.props.children 
+            : item.props.children?.toString() || '';
+        }
+      });
+    }
+  });
 
   return (
     <div ref={selectRef} className={`relative ${className}`}>
       {React.Children.map(children, (child: any) => {
-        if (child?.type?.name === 'SelectTrigger') {
+        if (child?.type?.displayName === 'SelectTrigger' || child?.type?.name === 'SelectTrigger') {
           return React.cloneElement(child, {
             onClick: () => setIsOpen(!isOpen),
             isOpen,
             selectedValue,
+            selectedLabel,
           });
         }
-        if (child?.type?.name === 'SelectContent') {
+        if (child?.type?.displayName === 'SelectContent' || child?.type?.name === 'SelectContent') {
           return isOpen ? React.cloneElement(child, {
             onItemClick: handleItemClick,
             selectedValue,
@@ -71,7 +88,7 @@ export function Select({ value, onValueChange, children, className = '' }: Selec
   );
 }
 
-export function SelectTrigger({ children, className = '', onClick, isOpen, selectedValue }: SelectTriggerProps & { onClick?: () => void; isOpen?: boolean; selectedValue?: string }) {
+export function SelectTrigger({ children, className = '', onClick, isOpen, selectedValue, selectedLabel }: SelectTriggerProps & { onClick?: () => void; isOpen?: boolean; selectedValue?: string; selectedLabel?: string }) {
   return (
     <button
       type="button"
@@ -79,20 +96,24 @@ export function SelectTrigger({ children, className = '', onClick, isOpen, selec
       className={`flex items-center justify-between w-full px-3 py-2 text-left bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${className}`}
     >
       <span className="block truncate">
-        {selectedValue ? children : 'Select an option'}
+        {selectedLabel || (selectedValue ? children : 'Select an option')}
       </span>
       <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
     </button>
   );
 }
+SelectTrigger.displayName = 'SelectTrigger';
 
-export function SelectContent({ children, className = '', onItemClick, selectedValue }: SelectContentProps & { onItemClick?: (value: string) => void; selectedValue?: string }) {
+export function SelectContent({ children, className = '', onItemClick, selectedValue }: SelectContentProps & { onItemClick?: (value: string, label: string) => void; selectedValue?: string }) {
   return (
     <div className={`absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto ${className}`}>
       {React.Children.map(children, (child: any) => {
-        if (child?.type?.name === 'SelectItem') {
+        if (child?.type?.displayName === 'SelectItem' || child?.type?.name === 'SelectItem') {
+          const label = typeof child.props.children === 'string' 
+            ? child.props.children 
+            : child.props.children?.toString() || '';
           return React.cloneElement(child, {
-            onClick: () => onItemClick?.(child.props.value),
+            onClick: () => onItemClick?.(child.props.value, label),
             isSelected: child.props.value === selectedValue,
           });
         }
@@ -101,6 +122,7 @@ export function SelectContent({ children, className = '', onItemClick, selectedV
     </div>
   );
 }
+SelectContent.displayName = 'SelectContent';
 
 export function SelectItem({ value, children, className = '', onClick, isSelected }: SelectItemProps & { onClick?: () => void; isSelected?: boolean }) {
   return (
@@ -115,3 +137,4 @@ export function SelectItem({ value, children, className = '', onClick, isSelecte
     </button>
   );
 }
+SelectItem.displayName = 'SelectItem';

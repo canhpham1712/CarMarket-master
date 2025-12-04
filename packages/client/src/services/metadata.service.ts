@@ -95,6 +95,28 @@ export class MetadataService {
   static async seedInitialData(): Promise<{ message: string }> {
     return apiClient.post<{ message: string }>("/metadata/seed");
   }
+
+  // Valuation metadata methods
+  static async getValuationMakes(): Promise<string[]> {
+    return apiClient.get<string[]>("/metadata/valuation/makes");
+  }
+
+  static async getValuationModels(make: string): Promise<string[]> {
+    return apiClient.get<string[]>(`/metadata/valuation/models/${encodeURIComponent(make)}`);
+  }
+
+  static async getValuationYears(make: string, model: string): Promise<number[]> {
+    return apiClient.get<number[]>(`/metadata/valuation/years/${encodeURIComponent(make)}/${encodeURIComponent(model)}`);
+  }
+
+  static async getValuationVersions(make: string, model: string, year: number): Promise<string[]> {
+    return apiClient.get<string[]>(`/metadata/valuation/versions/${encodeURIComponent(make)}/${encodeURIComponent(model)}/${year}`);
+  }
+
+  static async getValuationColors(make: string, model: string, year: number, version?: string): Promise<string[]> {
+    const url = `/metadata/valuation/colors/${encodeURIComponent(make)}/${encodeURIComponent(model)}/${year}${version ? `?version=${encodeURIComponent(version)}` : ''}`;
+    return apiClient.get<string[]>(url);
+  }
 }
 
 // Create a hook for metadata

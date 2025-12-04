@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
-import { User, LegacyUserRole } from '../../entities/user.entity';
+import { User } from '../../entities/user.entity';
 import {
   ListingDetail,
   ListingStatus,
@@ -48,7 +48,6 @@ export class AdminService {
         'email',
         'firstName',
         'lastName',
-        'role',
         'isActive',
         'isEmailVerified',
         'phoneNumber',
@@ -547,7 +546,6 @@ export class AdminService {
         'email',
         'firstName',
         'lastName',
-        'role',
         'isActive',
         'isEmailVerified',
         'phoneNumber',
@@ -588,9 +586,22 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    // Update legacy role for backward compatibility
-    user.role = role as LegacyUserRole;
-    await this.userRepository.save(user);
+    // Get all roles to find the role ID
+    const allRoles = await this.permissionService.getAllRoles();
+    const targetRole = allRoles.find(r => r.name === role);
+
+    if (!targetRole) {
+      throw new NotFoundException(`Role '${role}' not found`);
+    }
+
+    // Check if user already has this role
+    const userRoles = await this.permissionService.getUserRoles(id);
+    const hasRole = userRoles.some(r => r.id === targetRole.id);
+
+    if (!hasRole) {
+      // Assign the role using RBAC
+      await this.permissionService.assignRole(id, targetRole.id, id);
+    }
 
     // Log the role change
     await this.logsService.createLog({

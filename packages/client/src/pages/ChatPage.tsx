@@ -8,7 +8,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { ChatService } from "../services/chat.service";
 import { socketService } from "../services/socket.service";
 import { useAuthStore } from "../store/auth";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../hooks/useNotifications";
 import { useSocket } from "../contexts/SocketContext";
 import toast from "react-hot-toast";
 import type { ChatConversation, ChatMessage } from "../services/chat.service";
@@ -80,12 +80,8 @@ export function ChatPage() {
               return newMessages;
             });
 
-            // Show notification for new message (only if not from current user)
-            if (data.message.sender?.id !== user?.id) {
-              toast.success(
-                `New message from ${data.message.sender?.firstName} ${data.message.sender?.lastName}`
-              );
-            }
+            // Don't show toast here - it's already handled in NotificationContext
+            // When user is viewing the chat, they can see the message directly
           }
         }
       );
@@ -120,11 +116,16 @@ export function ChatPage() {
       // Load initial messages with pagination (this will replace the messages from getConversation)
       await loadMessages(1, true);
 
-      // Mark messages as read
-      await ChatService.markAsRead(conversationId);
-
-      // Update notification count
-      refreshConversations();
+      // Mark messages as read when user enters the chat page
+      try {
+        await ChatService.markAsRead(conversationId);
+        // Refresh conversations to update unread count after marking as read
+        await refreshConversations();
+      } catch (error) {
+        console.error("Failed to mark messages as read:", error);
+        // Still refresh to get current count
+        await refreshConversations();
+      }
     } catch (error) {
       toast.error("Failed to load conversation");
     } finally {

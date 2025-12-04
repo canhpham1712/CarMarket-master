@@ -16,6 +16,7 @@ export class NotificationPreferencesService {
     [NotificationType.LISTING_SOLD]: { inApp: true, email: true, push: false },
     [NotificationType.NEW_INQUIRY]: { inApp: true, email: false, push: true },
     [NotificationType.COMMENT_REPORTED]: { inApp: true, email: false, push: false },
+    [NotificationType.ROLE_ASSIGNED]: { inApp: true, email: false, push: false },
     [NotificationType.SYSTEM]: { inApp: true, email: false, push: false },
   };
 
@@ -33,14 +34,29 @@ export class NotificationPreferencesService {
     });
 
     if (!preference) {
-      // Create default preferences
-      preference = this.preferenceRepository.create({
-        userId,
-        preferences: this.defaultPreferences,
-        quietHours: null,
-      });
-      preference = await this.preferenceRepository.save(preference);
-      this.logger.log(`Created default preferences for user ${userId}`);
+      try {
+        // Create default preferences
+        preference = this.preferenceRepository.create({
+          userId,
+          preferences: this.defaultPreferences,
+          quietHours: null,
+        });
+        preference = await this.preferenceRepository.save(preference);
+        this.logger.log(`Created default preferences for user ${userId}`);
+      } catch (error: any) {
+        // Handle race condition: if another request created it, fetch it
+        if (error.code === '23505' && error.constraint === 'UQ_notification_preferences_userId') {
+          this.logger.warn(`Race condition detected for user ${userId}, fetching existing preferences`);
+          preference = await this.preferenceRepository.findOne({
+            where: { userId },
+          });
+          if (!preference) {
+            throw new Error('Failed to create or fetch notification preferences');
+          }
+        } else {
+          throw error;
+        }
+      }
     }
 
     return preference;
@@ -59,12 +75,26 @@ export class NotificationPreferencesService {
     });
 
     if (!preference) {
-      // Create with defaults
-      preference = this.preferenceRepository.create({
-        userId,
-        preferences: this.defaultPreferences,
-        quietHours: null,
-      });
+      try {
+        // Create with defaults
+        preference = this.preferenceRepository.create({
+          userId,
+          preferences: this.defaultPreferences,
+          quietHours: null,
+        });
+      } catch (error: any) {
+        // Handle race condition: if another request created it, fetch it
+        if (error.code === '23505' && error.constraint === 'UQ_notification_preferences_userId') {
+          preference = await this.preferenceRepository.findOne({
+            where: { userId },
+          });
+          if (!preference) {
+            throw new Error('Failed to create or fetch notification preferences');
+          }
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Update preferences if provided

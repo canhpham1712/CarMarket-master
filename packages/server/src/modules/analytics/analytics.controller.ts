@@ -25,8 +25,8 @@ export class AnalyticsController {
     @Query('period') period: string = '30d',
     @CurrentUser() user: User,
   ) {
-    // For seller and buyer, use their own user ID
-    const userId = role === 'seller' || role === 'buyer' ? user.id : undefined;
+    // For seller, use their own user ID
+    const userId = role === 'seller' ? user.id : undefined;
     return this.analyticsService.getDashboardData(role, userId, period);
   }
 

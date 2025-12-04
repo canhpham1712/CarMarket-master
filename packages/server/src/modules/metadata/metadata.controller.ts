@@ -6,6 +6,7 @@ import {
   Patch,
   Delete,
   Param,
+  Query,
   Body,
   UseGuards,
 } from '@nestjs/common';
@@ -222,5 +223,43 @@ export class MetadataController {
   @Get('admin/all')
   getAllMetadataForAdmin() {
     return this.metadataService.getAllMetadataForAdmin();
+  }
+
+  // Valuation metadata endpoints
+  @Get('valuation/makes')
+  getValuationMakes() {
+    return this.metadataService.getValuationMakes();
+  }
+
+  @Get('valuation/models/:make')
+  getValuationModels(@Param('make') make: string) {
+    return this.metadataService.getValuationModels(make);
+  }
+
+  @Get('valuation/years/:make/:model')
+  getValuationYears(
+    @Param('make') make: string,
+    @Param('model') model: string,
+  ) {
+    return this.metadataService.getValuationYears(make, model);
+  }
+
+  @Get('valuation/versions/:make/:model/:year')
+  getValuationVersions(
+    @Param('make') make: string,
+    @Param('model') model: string,
+    @Param('year') year: number,
+  ) {
+    return this.metadataService.getValuationVersions(make, model, +year);
+  }
+
+  @Get('valuation/colors/:make/:model/:year')
+  getValuationColors(
+    @Param('make') make: string,
+    @Param('model') model: string,
+    @Param('year') year: number,
+    @Query('version') version?: string,
+  ) {
+    return this.metadataService.getValuationColors(make, model, +year, version);
   }
 }

@@ -10,7 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAuthStore } from "../store/auth";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useNotifications } from "../hooks/useNotifications";
 import {
   NotificationService,
   type Notification,

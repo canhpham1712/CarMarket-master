@@ -12,12 +12,6 @@ import { Transaction } from './transaction.entity';
 import { UserRole } from './user-role.entity';
 import { SellerRating } from './seller-rating.entity';
 
-// Keep legacy enum for backward compatibility during migration
-export enum LegacyUserRole {
-  USER = 'user',
-  ADMIN = 'admin',
-}
-
 export enum OAuthProvider {
   LOCAL = 'local',
   GOOGLE = 'google',
@@ -56,14 +50,6 @@ export class User {
 
   @Column({ nullable: true, type: 'date' })
   dateOfBirth!: Date;
-
-  @Column({
-    type: 'enum',
-    enum: LegacyUserRole,
-    default: LegacyUserRole.USER,
-    nullable: true, // Make nullable for migration
-  })
-  role?: LegacyUserRole;
 
   @Column({ default: true })
   isActive!: boolean;

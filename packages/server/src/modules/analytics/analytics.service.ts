@@ -880,18 +880,6 @@ export class AnalyticsService {
         dashboardData.topListings = await this.getTopListings(5, userId);
         break;
 
-      case 'buyer':
-        if (!userId) {
-          throw new Error('User ID required for buyer dashboard');
-        }
-        dashboardData.overview = {
-          engagement: await this.getEngagementMetrics(period, userId),
-        };
-        dashboardData.charts = {
-          engagementTrend: await this.getEngagementTimeSeries(period, userId),
-        };
-        break;
-
       default:
         throw new Error(`Unknown role: ${role}`);
     }
