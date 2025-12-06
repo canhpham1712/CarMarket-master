@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: carmarket-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-carmarket}
+      POSTGRES_USER: ${DATABASE_USERNAME:-carmarket_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - carmarket-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-carmarket_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: carmarket-redis-prod
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - carmarket-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    container_name: carmarket-server-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-carmarket_user}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_NAME: ${DATABASE_NAME:-carmarket}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PORT: 3000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./packages/server/uploads:/app/packages/server/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - carmarket-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  client:
+    build:
+      context: .
+      dockerfile: packages/client/Dockerfile
+    container_name: carmarket-client-prod
+    restart: unless-stopped
+    depends_on:
+      - server
+    networks:
+      - carmarket-network
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  carmarket-network:
+    driver: bridge
+
