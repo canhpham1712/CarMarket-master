@@ -20,8 +20,15 @@ async function bootstrap() {
   });
 
   // Enable CORS
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const frontendUrl = configService.get<string>('FRONTEND_URL');
+  
+  const allowedOrigins = nodeEnv === 'production' && frontendUrl
+    ? [frontendUrl]
+    : ['http://localhost:5173', 'http://localhost:3000'];
+  
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: [
       'Content-Type',
