@@ -19,8 +19,6 @@ import { User } from '../../entities/user.entity';
 import { Favorite } from '../../entities/favorite.entity';
 import { ChatConversation } from '../../entities/chat-conversation.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage } from '../../entities/chatbot-message.entity';
 import { FAQ } from '../../entities/faq.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -35,8 +33,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
       Favorite,
       ChatConversation,
       ChatMessage,
-      ChatbotConversation,
-      ChatbotMessage,
       FAQ,
     ]),
     NotificationsModule,

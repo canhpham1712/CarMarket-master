@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { IntentClassificationService } from './services/intent-classification.service';
 import { ResponseHandlerService } from './services/response-handler.service';
 import { AssistantQueryDto } from './dto/assistant-query.dto';
@@ -8,8 +6,6 @@ import { AssistantResponseDto } from './dto/assistant-response.dto';
 import { User } from '../../entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../../entities/notification.entity';
-import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
-import { ChatbotMessage, ChatbotMessageSender } from '../../entities/chatbot-message.entity';
 
 @Injectable()
 export class AssistantService {
@@ -19,10 +15,6 @@ export class AssistantService {
     private readonly intentClassificationService: IntentClassificationService,
     private readonly responseHandlerService: ResponseHandlerService,
     private readonly notificationsService: NotificationsService,
-    @InjectRepository(ChatbotConversation)
-    private readonly chatbotConversationRepository: Repository<ChatbotConversation>,
-    @InjectRepository(ChatbotMessage)
-    private readonly chatbotMessageRepository: Repository<ChatbotMessage>,
   ) {}
 
   async processQuery(
@@ -31,32 +23,6 @@ export class AssistantService {
   ): Promise<AssistantResponseDto> {
     try {
       this.logger.log(`Processing query: ${queryDto.query}`);
-
-      // Get or create conversation
-      let conversation: ChatbotConversation | null = null;
-      if (currentUser && queryDto.conversationId) {
-        conversation = await this.chatbotConversationRepository.findOne({
-          where: { id: queryDto.conversationId, userId: currentUser.id },
-        });
-      }
-
-      // Create new conversation if not exists and user is authenticated
-      if (!conversation && currentUser) {
-        conversation = this.chatbotConversationRepository.create({
-          userId: currentUser.id,
-        });
-        conversation = await this.chatbotConversationRepository.save(conversation);
-      }
-
-      // Save user message if conversation exists
-      if (conversation && currentUser) {
-        const userMessage = this.chatbotMessageRepository.create({
-          conversationId: conversation.id,
-          content: queryDto.query,
-          sender: ChatbotMessageSender.USER,
-        });
-        await this.chatbotMessageRepository.save(userMessage);
-      }
 
       // Step 1: Classify user intent using LLM
       const { intent, confidence, extractedEntities } =
@@ -73,25 +39,6 @@ export class AssistantService {
         extractedEntities,
         currentUser,
       );
-
-      // Save assistant response if conversation exists
-      if (conversation && currentUser) {
-        const assistantMessage = this.chatbotMessageRepository.create({
-          conversationId: conversation.id,
-          content: response.message,
-          sender: ChatbotMessageSender.ASSISTANT,
-        });
-        await this.chatbotMessageRepository.save(assistantMessage);
-
-        // Update conversation last message
-        await this.chatbotConversationRepository.update(conversation.id, {
-          lastMessage: response.message,
-          lastMessageAt: new Date(),
-        });
-
-        // Add conversationId to response
-        response.conversationId = conversation.id;
-      }
 
       return response;
     } catch (error) {
@@ -193,54 +140,6 @@ export class AssistantService {
     }
 
     return response;
-  }
-
-  async getOrCreateConversation(userId: string): Promise<ChatbotConversation> {
-    // Get the most recent conversation or create a new one
-    let conversation = await this.chatbotConversationRepository.findOne({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-
-    if (!conversation) {
-      conversation = this.chatbotConversationRepository.create({
-        userId,
-      });
-      conversation = await this.chatbotConversationRepository.save(conversation);
-    }
-
-    return conversation;
-  }
-
-  async getConversationWithMessages(
-    conversationId: string,
-    userId: string,
-  ): Promise<{ conversation: ChatbotConversation; messages: ChatbotMessage[] }> {
-    const conversation = await this.chatbotConversationRepository.findOne({
-      where: { id: conversationId, userId },
-    });
-
-    if (!conversation) {
-      throw new Error('Conversation not found');
-    }
-
-    const messages = await this.chatbotMessageRepository.find({
-      where: { conversationId },
-      order: { createdAt: 'ASC' },
-    });
-
-    return { conversation, messages };
-  }
-
-  async getUserConversations(
-    userId: string,
-    limit: number = 10,
-  ): Promise<ChatbotConversation[]> {
-    return this.chatbotConversationRepository.find({
-      where: { userId },
-      order: { lastMessageAt: 'DESC', createdAt: 'DESC' },
-      take: limit,
-    });
   }
 }
 

@@ -173,12 +173,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         if (storedToken) {
           try {
             // Validate token by calling the /me endpoint
-            const response = await apiClient.get<User & { roles?: string[] }>("/auth/me");
+            const response = await apiClient.get<User>("/auth/me");
             // Extract permissions from stored token
             const permissions = getPermissionsFromToken(storedToken);
-            // Use roles from API response if available, otherwise fallback to JWT token
-            const rolesFromToken = getRolesFromToken(storedToken);
-            const roles = response.roles && response.roles.length > 0 ? response.roles : rolesFromToken;
+            const roles = getRolesFromToken(storedToken);
             set({
               user: { ...response, roles },
               accessToken: storedToken,
@@ -200,12 +198,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         } else if (accessToken && user) {
           try {
             // Validate token by calling the /me endpoint
-            const response = await apiClient.get<User & { roles?: string[] }>("/auth/me");
+            const response = await apiClient.get<User>("/auth/me");
             // Extract permissions from token
             const permissions = getPermissionsFromToken(accessToken);
-            // Use roles from API response if available, otherwise fallback to JWT token
-            const rolesFromToken = getRolesFromToken(accessToken);
-            const roles = response.roles && response.roles.length > 0 ? response.roles : rolesFromToken;
+            const roles = getRolesFromToken(accessToken);
             set({
               user: { ...response, roles },
               permissions,

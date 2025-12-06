@@ -25,6 +25,5 @@ export class AssistantResponseDto {
   data?: any;
   suggestions?: SuggestionChip[];
   actions?: MessageAction[];
-  conversationId?: string;
 }
 

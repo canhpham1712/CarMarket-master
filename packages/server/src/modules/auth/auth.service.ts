@@ -242,26 +242,6 @@ export class AuthService {
     return user;
   }
 
-  async findByIdWithRoles(id: string): Promise<User & { roles?: string[] }> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Get roles from database
-    const userRoles = await this.permissionService.getUserRoles(id);
-    const roleNames = userRoles.map(r => r.name);
-
-    delete user.password;
-    return {
-      ...user,
-      roles: roleNames,
-    } as User & { roles: string[] };
-  }
-
   async findByEmail(email: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },

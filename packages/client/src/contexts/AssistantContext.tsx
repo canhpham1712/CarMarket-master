@@ -31,7 +31,6 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     unreadCount: 0,
   });
   const [notificationCount, setNotificationCount] = useState(0);
-  const [conversationId, setConversationId] = useState<string | null>(null);
 
   // Fetch notification count for listing approvals
   useEffect(() => {
@@ -74,48 +73,25 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     };
   }, [isAuthenticated]);
 
-  // Load conversation and messages when authenticated
+  // Initialize assistant with welcome message
   useEffect(() => {
-    if (!isAuthenticated) {
-      setConversationId(null);
-      return;
-    }
-
-    const loadConversation = async () => {
-      try {
-        // Get the most recent conversation
-        const conversations = await AssistantService.getConversations();
-        if (conversations.length > 0) {
-          const latestConversation = conversations[0];
-          setConversationId(latestConversation.id);
-          
-          // Load messages from this conversation
-          const { messages: dbMessages } = await AssistantService.getConversationWithMessages(
-            latestConversation.id
-          );
-          
-          // Convert database messages to UI format
-          const uiMessages: Message[] = dbMessages.map((msg) => ({
-            id: msg.id,
-            content: msg.content,
-            sender: msg.sender,
-            timestamp: new Date(msg.createdAt),
-            type: "text",
-          }));
-          
-          setState(prev => ({ ...prev, messages: uiMessages }));
-        } else {
-          // No conversation yet, show welcome message
+    if (state.messages.length === 0) {
+      (async () => {
+        try {
           const welcomeResponse = await AssistantService.getWelcomeMessage();
-          const messages: Message[] = [{
+          const messages: Message[] = [];
+          
+          // Add welcome message
+          messages.push({
             id: Date.now().toString(),
             content: welcomeResponse.message,
             sender: "assistant",
             timestamp: new Date(),
             type: "text",
             actions: welcomeResponse.actions,
-          }];
+          });
 
+          // Add notification messages separately if they exist
           if (welcomeResponse.data?.notifications && Array.isArray(welcomeResponse.data.notifications)) {
             welcomeResponse.data.notifications.forEach((notif: any, index: number) => {
               messages.push({
@@ -129,36 +105,41 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
           }
 
           setState(prev => ({ ...prev, messages }));
+        } catch (error: any) {
+          // Handle connection errors gracefully
+          console.error("Failed to load welcome message:", error);
+          
+          // Set a default welcome message if backend is unavailable
+          const defaultMessages: Message[] = [{
+            id: Date.now().toString(),
+            content: "Hello! I'm your car marketplace assistant. How can I help you today?",
+            sender: "assistant",
+            timestamp: new Date(),
+            type: "text",
+            actions: [
+              {
+                label: "Browse Cars",
+                action: "search_listings",
+                data: {}
+              },
+              {
+                label: "My Listings",
+                action: "view_my_listings",
+                data: {}
+              }
+            ],
+          }];
+          
+          setState(prev => ({ ...prev, messages: defaultMessages }));
         }
-      } catch (error: any) {
-        console.error("Failed to load conversation:", error);
-        // Fallback to welcome message
-        const welcomeResponse = await AssistantService.getWelcomeMessage().catch(() => null);
-        const defaultMessages: Message[] = [{
-          id: Date.now().toString(),
-          content: welcomeResponse?.message || "Hello! I'm your car marketplace assistant. How can I help you today?",
-          sender: "assistant",
-          timestamp: new Date(),
-          type: "text",
-          actions: welcomeResponse?.actions || [
-            {
-              label: "Browse Cars",
-              action: "search_listings",
-              data: {}
-            }
-          ],
-        }];
-        setState(prev => ({ ...prev, messages: defaultMessages }));
-      }
-    };
-
-    loadConversation();
-  }, [isAuthenticated]);
+      })();
+    }
+  }, []);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
-    // Add user message optimistically
+    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -177,70 +158,24 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
-      // Get assistant response (this will save to database)
-      const response = await AssistantService.sendQuery(content, conversationId || undefined);
+      // Get assistant response
+      const response = await AssistantService.sendQuery(content);
 
-      // Update conversationId if we got a new one
-      if (response.conversationId && response.conversationId !== conversationId) {
-        setConversationId(response.conversationId);
-      }
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: response.message,
+        sender: "assistant",
+        timestamp: new Date(),
+        type: response.actions ? "action" : "text",
+        actions: response.actions,
+      };
 
-      // Reload messages from database to ensure consistency
-      if (response.conversationId) {
-        try {
-          const { messages: dbMessages } = await AssistantService.getConversationWithMessages(
-            response.conversationId
-          );
-          
-          const uiMessages: Message[] = dbMessages.map((msg) => ({
-            id: msg.id,
-            content: msg.content,
-            sender: msg.sender,
-            timestamp: new Date(msg.createdAt),
-            type: "text",
-          }));
-          
-          setState(prev => ({
-            ...prev,
-            messages: uiMessages,
-            isTyping: false,
-            unreadCount: prev.isOpen ? prev.unreadCount : prev.unreadCount + 1,
-          }));
-        } catch (loadError) {
-          console.error("Failed to reload messages:", loadError);
-          // Fallback to adding message manually
-          const assistantMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            content: response.message,
-            sender: "assistant",
-            timestamp: new Date(),
-            type: response.actions ? "action" : "text",
-            actions: response.actions,
-          };
-          setState(prev => ({
-            ...prev,
-            messages: [...prev.messages, assistantMessage],
-            isTyping: false,
-            unreadCount: prev.isOpen ? prev.unreadCount : prev.unreadCount + 1,
-          }));
-        }
-      } else {
-        // No conversationId, just add message (for unauthenticated users)
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: response.message,
-          sender: "assistant",
-          timestamp: new Date(),
-          type: response.actions ? "action" : "text",
-          actions: response.actions,
-        };
-        setState(prev => ({
-          ...prev,
-          messages: [...prev.messages, assistantMessage],
-          isTyping: false,
-          unreadCount: prev.isOpen ? prev.unreadCount : prev.unreadCount + 1,
-        }));
-      }
+      setState(prev => ({
+        ...prev,
+        messages: [...prev.messages, assistantMessage],
+        isTyping: false,
+        unreadCount: prev.isOpen ? prev.unreadCount : prev.unreadCount + 1,
+      }));
     } catch (error: any) {
       console.error("Assistant error:", error);
       
@@ -331,9 +266,6 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
   }, []);
 
   const clearMessages = useCallback(async () => {
-    // Reset conversationId to start a new conversation
-    setConversationId(null);
-    
     try {
       const welcomeResponse = await AssistantService.getWelcomeMessage();
       const welcomeMessage: Message = {

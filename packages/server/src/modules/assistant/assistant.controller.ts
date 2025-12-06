@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
 import { AssistantService } from './assistant.service';
 import { AssistantQueryDto } from './dto/assistant-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -23,21 +23,6 @@ export class AssistantController {
     @CurrentUser() user: User,
   ) {
     return this.assistantService.processQuery(queryDto, user);
-  }
-
-  @Get('conversations')
-  @UseGuards(JwtAuthGuard)
-  getUserConversations(@CurrentUser() user: User) {
-    return this.assistantService.getUserConversations(user.id);
-  }
-
-  @Get('conversations/:conversationId')
-  @UseGuards(JwtAuthGuard)
-  getConversationWithMessages(
-    @Param('conversationId') conversationId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.assistantService.getConversationWithMessages(conversationId, user.id);
   }
 }
 

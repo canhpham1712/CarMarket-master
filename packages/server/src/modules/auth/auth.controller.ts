@@ -74,8 +74,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async getMe(@Request() req: any): Promise<User & { roles?: string[] }> {
-    return this.authService.findByIdWithRoles(req.user.id);
+  async getMe(@Request() req: any): Promise<User> {
+    return this.authService.findById(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)

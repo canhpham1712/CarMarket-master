@@ -13,24 +13,6 @@ export interface AssistantQueryResponse {
   data?: any; // Can be CarComparisonData for car_compare intent
   suggestions?: SuggestionChip[];
   actions?: MessageAction[];
-  conversationId?: string;
-}
-
-export interface ChatbotConversation {
-  id: string;
-  lastMessage: string | null;
-  lastMessageAt: string | null;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ChatbotMessage {
-  id: string;
-  content: string;
-  sender: "user" | "assistant";
-  conversationId: string;
-  createdAt: string;
 }
 
 export interface CarCompareResponse extends AssistantQueryResponse {
@@ -128,23 +110,5 @@ export class AssistantService {
     response: AssistantQueryResponse
   ): response is CarCompareResponse {
     return response.intent === "car_compare" && !!response.data;
-  }
-
-  /**
-   * Get user's chatbot conversations
-   */
-  static async getConversations(): Promise<ChatbotConversation[]> {
-    const response = await apiClient.get("/assistant/conversations");
-    return response as ChatbotConversation[];
-  }
-
-  /**
-   * Get conversation with messages
-   */
-  static async getConversationWithMessages(
-    conversationId: string
-  ): Promise<{ conversation: ChatbotConversation; messages: ChatbotMessage[] }> {
-    const response = await apiClient.get(`/assistant/conversations/${conversationId}`);
-    return response as { conversation: ChatbotConversation; messages: ChatbotMessage[] };
   }
 }
