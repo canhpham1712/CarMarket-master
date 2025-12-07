@@ -26,39 +26,52 @@ export class SettingsService {
   /**
    * Get user settings, creating default if not exists
    */
+  // Trong packages/server/src/modules/settings/settings.service.ts
+
   async getUserSettings(userId: string): Promise<UserSettings> {
     try {
+      // 1. Thử tìm settings hiện có
       let settings = await this.settingsRepository.findOne({
         where: { userId },
       });
 
+      // 2. Nếu chưa có, tiến hành tạo mới
       if (!settings) {
-        // Get user to determine roles
-        const user = await this.userRepository.findOne({
-          where: { id: userId },
-        });
-
+        const user = await this.userRepository.findOne({ where: { id: userId } });
         if (!user) {
           throw new NotFoundException('User not found');
         }
 
-        // Create default settings based on user roles
         const defaultSettings = await this.getDefaultSettings(userId);
-        settings = this.settingsRepository.create({
+        const newSettings = this.settingsRepository.create({
           userId,
           settings: defaultSettings,
         });
-        settings = await this.settingsRepository.save(settings);
-        this.logger.log(`Created default settings for user ${userId}`);
+
+        try {
+          // Cố gắng lưu
+          settings = await this.settingsRepository.save(newSettings);
+          this.logger.log(`Created default settings for user ${userId}`);
+        } catch (saveError: any) {
+          // 3. XỬ LÝ LỖI TRÙNG LẶP (Race condition fix)
+          // Mã lỗi 23505 là unique_violation trong PostgreSQL
+          if (saveError.code === '23505') {
+            this.logger.warn(`Race condition detected for user ${userId}, fetching existing settings.`);
+            settings = await this.settingsRepository.findOne({ where: { userId } });
+            
+            if (!settings) {
+              throw new Error('Unexpected error: Could not fetch settings after duplicate key violation');
+            }
+          } else {
+            // Nếu là lỗi khác thì ném ra bình thường
+            throw saveError;
+          }
+        }
       }
 
       return settings;
     } catch (error: any) {
       this.logger.error(`Error getting user settings for ${userId}: ${error.message}`, error.stack);
-      // If table doesn't exist, throw a more helpful error
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        throw new Error('User settings table does not exist. Please run migration script: init-scripts/19-create-user-settings-table.sql');
-      }
       throw error;
     }
   }

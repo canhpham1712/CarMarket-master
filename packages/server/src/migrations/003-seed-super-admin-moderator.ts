@@ -23,17 +23,18 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
 
     // ========================================
     // Step 1: Create or update Super Admin user
+    // (Đã xóa cột role)
     // ========================================
     await queryRunner.query(`
       INSERT INTO users (
           id, email, password, "firstName", "lastName", "phoneNumber", 
-          role, "isActive", "isEmailVerified", provider, "createdAt", "updatedAt"
+          "isActive", "isEmailVerified", provider, "createdAt", "updatedAt"
       ) VALUES (
           COALESCE((SELECT id FROM users WHERE email = 'superadmin@carmarket.com'), uuid_generate_v4()),
           'superadmin@carmarket.com',
           '$2b$12$22XPfsAaoVFNixpvzkAow.DajxY5NPwHdHfY1qifgaT0C1lNDkXci', -- SuperAdmin123!
           'Super', 'Admin', '+1234567890',
-          'admin', true, true, 'local',
+          true, true, 'local',
           COALESCE((SELECT "createdAt" FROM users WHERE email = 'superadmin@carmarket.com'), CURRENT_TIMESTAMP),
           CURRENT_TIMESTAMP
       )
@@ -42,7 +43,6 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
           "firstName" = EXCLUDED."firstName",
           "lastName" = EXCLUDED."lastName",
           "phoneNumber" = EXCLUDED."phoneNumber",
-          role = EXCLUDED.role,
           "isActive" = EXCLUDED."isActive",
           "isEmailVerified" = EXCLUDED."isEmailVerified",
           "updatedAt" = CURRENT_TIMESTAMP;
@@ -50,17 +50,18 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
 
     // ========================================
     // Step 2: Create or update Moderator user
+    // (Đã xóa cột role)
     // ========================================
     await queryRunner.query(`
       INSERT INTO users (
           id, email, password, "firstName", "lastName", "phoneNumber", 
-          role, "isActive", "isEmailVerified", provider, "createdAt", "updatedAt"
+          "isActive", "isEmailVerified", provider, "createdAt", "updatedAt"
       ) VALUES (
           COALESCE((SELECT id FROM users WHERE email = 'moderator@carmarket.com'), uuid_generate_v4()),
           'moderator@carmarket.com',
           '$2b$12$lmV.4cz1TeM8WxOzaYXFG.gIQ3t0IHhRHPn57cYNJUHSTaNyJlhDi', -- Moderator123!
           'Content', 'Moderator', '+1234567891',
-          'user', true, true, 'local',
+          true, true, 'local',
           COALESCE((SELECT "createdAt" FROM users WHERE email = 'moderator@carmarket.com'), CURRENT_TIMESTAMP),
           CURRENT_TIMESTAMP
       )
@@ -69,7 +70,6 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
           "firstName" = EXCLUDED."firstName",
           "lastName" = EXCLUDED."lastName",
           "phoneNumber" = EXCLUDED."phoneNumber",
-          role = EXCLUDED.role,
           "isActive" = EXCLUDED."isActive",
           "isEmailVerified" = EXCLUDED."isEmailVerified",
           "updatedAt" = CURRENT_TIMESTAMP;
@@ -77,7 +77,6 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
 
     // ========================================
     // Step 3: Assign 'super_admin' role to Super Admin user
-    // (logic khớp hoàn toàn với file .sql)
     // ========================================
     await queryRunner.query(`
       DO $$
@@ -129,7 +128,6 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
 
     // ========================================
     // Step 4: Assign 'moderator' role to Moderator user
-    // (logic khớp hoàn toàn với file .sql)
     // ========================================
     await queryRunner.query(`
       DO $$
@@ -179,7 +177,6 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
       END $$;
     `);
 
-    // (Optional) Có thể bỏ console.log để giống script SQL “im lặng”
     console.log('✅ Seed Super Admin and Moderator Migration Completed Successfully');
 
     
@@ -192,14 +189,13 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
       `);
       console.log(verification[0].status);
   
-      // ---- Super Admin verification
+      // ---- Super Admin verification (Removed legacy role)
       const superAdmin = await queryRunner.query(`
         SELECT 
             u.id,
             u.email,
             u."firstName",
             u."lastName",
-            u.role AS legacy_role,
             u."isActive",
             u."isEmailVerified",
             r.name AS rbac_role,
@@ -211,14 +207,13 @@ export class SeedSuperAdminAndModerator1700000000003 implements MigrationInterfa
       `);
       console.log('Super Admin:', JSON.stringify(superAdmin, null, 2));
   
-      // ---- Moderator verification
+      // ---- Moderator verification (Removed legacy role)
       const moderator = await queryRunner.query(`
         SELECT 
             u.id,
             u.email,
             u."firstName",
             u."lastName",
-            u.role AS legacy_role,
             u."isActive",
             u."isEmailVerified",
             r.name AS rbac_role,
