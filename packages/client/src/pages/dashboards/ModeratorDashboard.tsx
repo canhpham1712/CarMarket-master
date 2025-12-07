@@ -181,7 +181,7 @@ export function ModeratorDashboard() {
         {charts.engagementTrend && charts.engagementTrend.length > 0 && (
           <ChartCard title="Moderation Trends">
             <LineChart
-              data={charts.engagementTrend}
+              data={charts.engagementTrend as any[]}
               dataKeys={[
                 { key: 'conversations', color: '#3b82f6', name: 'Conversations' },
                 { key: 'messages', color: '#8b5cf6', name: 'Messages' },

@@ -93,7 +93,7 @@ export function CommentReactions({ comment, onReaction, isAuthenticated }: Comme
     
     // If user has a reaction, remove it on click
     if (comment.userReaction) {
-      onReaction(comment.id, comment.userReaction);
+      onReaction(comment.id, comment.userReaction as 'like' | 'helpful' | 'dislike');
     } else {
       // Otherwise show menu
       setShowMenu(!showMenu);

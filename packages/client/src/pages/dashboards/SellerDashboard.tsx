@@ -186,7 +186,7 @@ export function SellerDashboard() {
         {charts.revenueTrend && charts.revenueTrend.length > 0 && (
           <ChartCard title="Revenue Trend">
             <AreaChart
-              data={charts.revenueTrend}
+              data={charts.revenueTrend as any[]}
               dataKeys={[{ key: 'revenue', color: '#10b981', name: 'Revenue' }]}
               xAxisKey="date"
             />
@@ -221,7 +221,7 @@ export function SellerDashboard() {
         {charts.engagementTrend && charts.engagementTrend.length > 0 && (
           <ChartCard title="Inquiry Activity">
             <BarChart
-              data={charts.engagementTrend}
+              data={charts.engagementTrend as any[]}
               dataKeys={[
                 { key: 'conversations', color: '#3b82f6', name: 'Conversations' },
                 { key: 'messages', color: '#8b5cf6', name: 'Messages' },
