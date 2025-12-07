@@ -24,13 +24,18 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
-  // Enable CORS
-  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  // 1. Cấu hình CORS linh hoạt hơn
   const frontendUrl = configService.get<string>('FRONTEND_URL');
   
-  const allowedOrigins = nodeEnv === 'production' && frontendUrl
-    ? [frontendUrl]
-    : ['http://localhost:5173'];
+  // Mặc định luôn cho phép localhost để dev
+  const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+  
+  // Nếu có biến môi trường FRONTEND_URL, thêm nó vào danh sách cho phép
+  const allowedOrigins = frontendUrl 
+    ? [...defaultOrigins, frontendUrl, 'https://carmarket-six.vercel.app'] // Thêm cứng domain vercel để chắc chắn
+    : defaultOrigins;
+  
+  console.log('🌍 CORS Allowed Origins:', allowedOrigins);
   
   app.enableCors({
     origin: allowedOrigins,
