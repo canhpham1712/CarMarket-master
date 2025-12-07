@@ -67,6 +67,7 @@ import toast from "react-hot-toast";
 import { SellerVerificationService, type SellerVerification, VerificationStatus } from "../services/seller-verification.service";
 import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
 import { useAuthStore } from "../store/auth";
+import { SOCKET_URL } from "../lib/constants";
 
 interface Listing {
   id: string;
@@ -2822,7 +2823,7 @@ export function EnhancedAdminDashboard() {
                 <div>
                   {selectedListing.carDetail?.images?.[0] ? (
                     <img
-                      src={`http://localhost:3000${selectedListing.carDetail.images[0].url}`}
+                      src={`${SOCKET_URL}${selectedListing.carDetail.images[0].url}`}
                       alt={selectedListing.title}
                       className="w-full h-64 object-cover rounded-lg"
                     />
@@ -3205,7 +3206,7 @@ export function EnhancedAdminDashboard() {
                                   {change.changes.images.map((img: any, idx: number) => (
                                     <div key={idx} className="relative aspect-video bg-gray-100 rounded border overflow-hidden">
                                       <img
-                                        src={`http://localhost:3000${img.url}`}
+                                        src={`${SOCKET_URL}${img.url}`}
                                         alt={img.alt || img.originalName || `Image ${idx + 1}`}
                                         className="w-full h-full object-cover"
                                       />
@@ -3226,7 +3227,7 @@ export function EnhancedAdminDashboard() {
                                   {change.changes.videos.map((vid: any, idx: number) => (
                                     <div key={idx} className="relative aspect-video bg-gray-100 rounded border overflow-hidden">
                                       <video
-                                        src={`http://localhost:3000${vid.url}`}
+                                        src={`${SOCKET_URL}${vid.url}`}
                                         className="w-full h-full object-cover"
                                         controls={false}
                                       />

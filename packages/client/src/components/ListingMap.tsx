@@ -8,6 +8,9 @@ import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 
+// Thêm dòng này để lấy URL server từ biến môi trường
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+
 type MarkerClusterGroup = L.LayerGroup & {
   addLayer(layer: L.Layer): MarkerClusterGroup;
   clearLayers(): MarkerClusterGroup;
@@ -125,7 +128,7 @@ function MarkerClusterGroupComponent({
       });
 
       const imageUrl = primaryImage?.url 
-        ? (primaryImage.url.startsWith('http') ? primaryImage.url : `http://localhost:3000${primaryImage.url}`)
+        ? (primaryImage.url.startsWith('http') ? primaryImage.url : `${SERVER_URL}${primaryImage.url}`)
         : '';
 
       const popupContent = `

@@ -26,6 +26,8 @@ import toast from "react-hot-toast";
 import type { ListingDetail, ListingPromotion } from "../types";
 import { PromotionBadge } from "./promotions/PromotionBadge";
 
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+
 interface CarCardProps {
   listing: ListingDetail;
   showActions?: boolean;
@@ -160,7 +162,7 @@ export function CarCard({
     try {
       const response = await ChatService.startConversation(listing.id);
       toast.success("Conversation started! Check your messages.");
-      window.location.href = `/chat/${response.conversation.id}`;
+      navigate(`/chat/${response.conversation.id}`);
     } catch (error: any) {
       console.error("Failed to start conversation:", error);
       const errorMessage =
@@ -193,7 +195,7 @@ export function CarCard({
                 primaryImage
                   ? (primaryImage.url.startsWith('http') 
                       ? primaryImage.url 
-                      : `http://localhost:3000${primaryImage.url}`)
+                      : `${SERVER_URL}${primaryImage.url}`) // ✅ Đã sửa
                   : CAR_PLACEHOLDER_IMAGE
               }
               alt={listing.title}

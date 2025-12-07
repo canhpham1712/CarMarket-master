@@ -16,9 +16,14 @@ interface AuthenticatedSocket extends Socket {
   userRoles?: string[];
 }
 
+// SỬA ĐỔI: Xác định allowedOrigins từ biến môi trường
+const allowedOrigins = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL]
+  : ['http://localhost:5173'];
+
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedOrigins, // ✅ Dùng biến đã xử lý
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -195,4 +200,3 @@ export class MonitoringGateway implements OnGatewayConnection, OnGatewayDisconne
     }
   }
 }
-

@@ -33,6 +33,7 @@ import { RatingService } from "../services/rating.service";
 import { useAuthStore } from "../store/auth";
 import type { User as UserType, ListingDetail, RatingStats } from "../types";
 import toast from "react-hot-toast";
+import { SOCKET_URL } from "../lib/constants";
 
 type ListingFilter = "all" | "active" | "sold";
 type ListingSort = "newest" | "oldest" | "price-low" | "price-high" | "views";
@@ -194,7 +195,7 @@ export function UserProfilePage() {
               <Avatar
                 src={
                   user.profileImage
-                    ? `http://localhost:3000${user.profileImage}`
+                    ? `${SOCKET_URL}${user.profileImage}`
                     : undefined
                 }
                 alt={`${user.firstName} ${user.lastName}`}

@@ -31,6 +31,7 @@ import { ProfileService } from "../services/profile.service";
 import { SellerVerificationService } from "../services/seller-verification.service";
 import type { User as UserType } from "../types";
 import { AlertCircle } from "lucide-react";
+import { SOCKET_URL } from "../lib/constants";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -212,7 +213,7 @@ export function ProfilePage() {
                 <Avatar
                   src={
                     user.profileImage
-                      ? `http://localhost:3000${user.profileImage}`
+                      ? `${SOCKET_URL}${user.profileImage}`
                       : undefined
                   }
                   alt="Profile"

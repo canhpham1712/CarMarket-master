@@ -31,6 +31,9 @@ import toast from "react-hot-toast";
 import { RejectionReasonTextarea } from "../components/RejectionReasonTextarea";
 import { SellerVerificationService, type SellerVerification, VerificationStatus } from "../services/seller-verification.service";
 
+// Thêm dòng này để lấy URL server từ biến môi trường
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "makes" | "metadata" | "listings" | "rbac" | "verifications"
@@ -493,7 +496,8 @@ export function AdminDashboard() {
                   <div className="relative h-48 bg-gray-200 overflow-hidden">
                     {listing.carDetail?.images?.[0] ? (
                       <img
-                        src={`http://localhost:3000${listing.carDetail.images[0].url}`}
+                        // SỬA: Thay thế localhost bằng SERVER_URL
+                        src={`${SERVER_URL}${listing.carDetail.images[0].url}`}
                         alt={listing.title}
                         className="w-full h-full object-cover"
                       />
@@ -970,7 +974,8 @@ export function AdminDashboard() {
                 <div>
                   {selectedListing.carDetail?.images?.[0] ? (
                     <img
-                      src={`http://localhost:3000${selectedListing.carDetail.images[0].url}`}
+                      // SỬA: Thay thế localhost bằng SERVER_URL
+                      src={`${SERVER_URL}${selectedListing.carDetail.images[0].url}`}
                       alt={selectedListing.title}
                       className="w-full h-64 object-cover rounded-lg"
                     />

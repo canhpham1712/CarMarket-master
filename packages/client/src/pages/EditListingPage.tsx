@@ -28,6 +28,7 @@ import { useMetadata } from "../services/metadata.service";
 import type { ListingDetail } from "../types";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
 import { LocationPicker } from "../components/LocationPicker";
+import { SOCKET_URL } from "../lib/constants";
 
 const editListingSchema = z.object({
   // Listing Information
@@ -1257,7 +1258,7 @@ export function EditListingPage() {
                     images={[
                       ...currentImages.map((image, index) => ({
                         id: index.toString(),
-                        src: `http://localhost:3000${image.url}`,
+                        src: `${SOCKET_URL}${image.url}`,
                         isExisting: true,
                         originalImage: image,
                       })),
@@ -1329,7 +1330,7 @@ export function EditListingPage() {
                       className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200"
                     >
                       <video
-                        src={`http://localhost:3000${video.url}`}
+                        src={`${SOCKET_URL}${video.url}`}
                         className="w-full h-full object-cover"
                         controls={false}
                       />

@@ -49,6 +49,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from "../components/ui/Tabs";
+import { SOCKET_URL } from "../lib/constants";
 
 export function CarDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -342,7 +343,7 @@ export function CarDetailsPage() {
             src={
               currentImage.url.startsWith('http') 
                 ? currentImage.url 
-                : `http://localhost:3000${currentImage.url}`
+                : `${SOCKET_URL}${currentImage.url}`
             }
             alt={listing.title}
             className="w-full h-full object-cover"
@@ -370,7 +371,7 @@ export function CarDetailsPage() {
                   src={
                     image.url.startsWith('http') 
                       ? image.url 
-                      : `http://localhost:3000${image.url}`
+                      : `${SOCKET_URL}${image.url}`
                   }
                   alt={`Car image ${index + 1}`}
                   className="w-full h-full object-cover"
@@ -390,7 +391,7 @@ export function CarDetailsPage() {
         <div key={video.id}>
           <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
             <video
-              src={`http://localhost:3000${video.url}`}
+              src={`${SOCKET_URL}${video.url}`}
               controls
               className="w-full h-full object-cover"
             >
@@ -649,7 +650,7 @@ export function CarDetailsPage() {
                   <Avatar
                     src={
                       listing.seller.profileImage
-                        ? `http://localhost:3000${listing.seller.profileImage}`
+                        ? `${SOCKET_URL}${listing.seller.profileImage}`
                         : ""
                     }
                     alt={`${listing.seller.firstName} ${listing.seller.lastName}`}
@@ -927,7 +928,7 @@ export function CarDetailsPage() {
               src={
                 images[modalImageIndex]?.url.startsWith('http')
                   ? images[modalImageIndex]?.url
-                  : `http://localhost:3000${images[modalImageIndex]?.url}`
+                  : `${SOCKET_URL}${images[modalImageIndex]?.url}`
               }
               alt={`Car image ${modalImageIndex + 1}`}
               className="max-w-full max-h-[90vh] object-contain transition-transform duration-200"

@@ -13,7 +13,12 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
+  const port = configService.get<number>('PORT', 3000);
 
+  // 1. Lấy BACKEND_URL ngay từ đầu để dùng cho Swagger và Log
+  // Nếu không có biến môi trường thì fallback về localhost
+  const backendUrl = configService.get<string>('BACKEND_URL', `http://localhost:${port}`);
+  
   // Serve static files for uploads
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
@@ -25,7 +30,7 @@ async function bootstrap() {
   
   const allowedOrigins = nodeEnv === 'production' && frontendUrl
     ? [frontendUrl]
-    : ['http://localhost:5173', 'http://localhost:3000'];
+    : ['http://localhost:5173'];
   
   app.enableCors({
     origin: allowedOrigins,
@@ -70,19 +75,23 @@ async function bootstrap() {
     .setDescription('API documentation and live testing')
     .setVersion('1.0')
     .addBearerAuth()
+    // 2. Thêm server URL vào Swagger để nút "Try it out" hoạt động đúng trên Prod
+    .addServer(backendUrl)
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = configService.get<number>('PORT', 3000);
+  //const port = configService.get<number>('PORT', 3000);
 
   app.enableShutdownHooks();
 
   // Start the NestJS application
   await app.listen(port);
   
-  console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📘 Swagger docs on http://localhost:${port}/api/docs`);
+  // console.log(`🚀 Server running on http://localhost:${port}`);
+  // console.log(`📘 Swagger docs on http://localhost:${port}/api/docs`);
+  console.log(`🚀 Server running on ${backendUrl}`);
+  console.log(`📘 Swagger docs on ${backendUrl}/api/docs`);
   console.log(`🔌 Socket.IO server running on /chat namespace`);
 }
 void bootstrap();

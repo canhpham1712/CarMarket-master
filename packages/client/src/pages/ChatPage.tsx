@@ -12,6 +12,7 @@ import { useNotifications } from "../hooks/useNotifications";
 import { useSocket } from "../contexts/SocketContext";
 import toast from "react-hot-toast";
 import type { ChatConversation, ChatMessage } from "../services/chat.service";
+import { SOCKET_URL } from "../lib/constants";
 
 export function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -349,7 +350,7 @@ export function ChatPage() {
             <Avatar
               src={
                 otherUser.profileImage
-                  ? `http://localhost:3000${otherUser.profileImage}`
+                  ? `${SOCKET_URL}${otherUser.profileImage}`
                   : ""
               }
               alt={`${otherUser.firstName} ${otherUser.lastName}`}

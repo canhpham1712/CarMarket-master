@@ -15,6 +15,9 @@ import { ListingService } from '../../services/listing.service';
 import type { User as UserType, ListingDetail } from '../../types';
 import toast from 'react-hot-toast';
 
+// Thêm dòng này để lấy URL server từ biến môi trường
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+
 interface MarkAsSoldDialogProps {
   listing: ListingDetail;
   open: boolean;
@@ -139,7 +142,8 @@ export function MarkAsSoldDialog({
                     }`}
                   >
                     <Avatar
-                      src={buyer.profileImage ? `http://localhost:3000${buyer.profileImage}` : undefined}
+                      // SỬA: Thay thế hardcode localhost bằng SERVER_URL
+                      src={buyer.profileImage ? `${SERVER_URL}${buyer.profileImage}` : undefined}
                       alt={`${buyer.firstName} ${buyer.lastName}`}
                       size="md"
                     />
@@ -271,4 +275,3 @@ export function MarkAsSoldDialog({
     </Dialog>
   );
 }
-

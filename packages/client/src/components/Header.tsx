@@ -17,6 +17,8 @@ import { Button } from "./ui/Button";
 import { Avatar } from "./ui/Avatar";
 import { NotificationBell } from "./NotificationBell";
 
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+
 export function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const { chatUnreadCount } = useNotifications();
@@ -105,7 +107,7 @@ export function Header() {
                     <Avatar
                       src={
                         user?.profileImage
-                          ? `http://localhost:3000${user.profileImage}`
+                          ? `${SERVER_URL}${user.profileImage}` // ✅ Đã sửa
                           : ""
                       }
                       alt="Profile"

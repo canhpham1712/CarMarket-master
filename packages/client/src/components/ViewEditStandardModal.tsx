@@ -7,6 +7,9 @@ import { SellerVerificationService, VerificationLevel, DocumentType, type Seller
 import toast from "react-hot-toast";
 import type { User as UserType } from "../types";
 
+// Thêm dòng này để lấy URL server từ biến môi trường
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+
 interface ViewEditStandardModalProps {
   open: boolean;
   onClose: () => void;
@@ -257,14 +260,16 @@ export function ViewEditStandardModal({
                         <div key={index} className="relative border rounded-lg p-2">
                           {doc.fileUrl && (
                             <a
-                              href={`http://localhost:3000${doc.fileUrl}`}
+                              // SỬA: Dùng SERVER_URL thay cho localhost
+                              href={`${SERVER_URL}${doc.fileUrl}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="block"
                             >
                               {doc.mimeType?.startsWith("image/") ? (
                                 <img
-                                  src={`http://localhost:3000${doc.fileUrl}`}
+                                  // SỬA: Dùng SERVER_URL thay cho localhost
+                                  src={`${SERVER_URL}${doc.fileUrl}`}
                                   alt={doc.documentType}
                                   className="w-full h-32 object-cover rounded"
                                 />
@@ -386,14 +391,16 @@ export function ViewEditStandardModal({
                       <div key={index} className="relative border rounded-lg p-2">
                         {doc.fileUrl && (
                           <a
-                            href={`http://localhost:3000${doc.fileUrl}`}
+                            // SỬA: Dùng SERVER_URL thay cho localhost
+                            href={`${SERVER_URL}${doc.fileUrl}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block"
                           >
                             {doc.mimeType?.startsWith("image/") ? (
                               <img
-                                src={`http://localhost:3000${doc.fileUrl}`}
+                                // SỬA: Dùng SERVER_URL thay cho localhost
+                                src={`${SERVER_URL}${doc.fileUrl}`}
                                 alt={doc.documentType}
                                 className="w-full h-32 object-cover rounded"
                               />
@@ -464,4 +471,3 @@ export function ViewEditStandardModal({
     </Dialog>
   );
 }
-

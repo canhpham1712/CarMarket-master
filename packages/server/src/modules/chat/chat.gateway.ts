@@ -17,9 +17,15 @@ interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
 
+// SỬA ĐỔI: Xác định allowedOrigins từ biến môi trường
+// Lưu ý: Decorator chạy khi file được load, nên ta dùng process.env trực tiếp
+const allowedOrigins = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL]
+  : ['http://localhost:5173'];
+
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedOrigins, // ✅ Dùng biến đã xử lý
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -38,6 +44,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Optional() private readonly realtimeMetricsService?: RealtimeMetricsService,
   ) {}
 
+  // ... (Phần code logic bên dưới giữ nguyên không đổi) ...
   async handleConnection(client: AuthenticatedSocket) {
     try {
       const token =

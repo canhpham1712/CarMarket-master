@@ -19,6 +19,9 @@ import {
 import { formatRelativeTime } from '../../lib/utils';
 import toast from 'react-hot-toast';
 
+// Thêm dòng này để lấy URL server từ biến môi trường
+const SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+
 interface CommentItemProps {
   comment: Comment;
   onUpdateComment: (commentId: string, content: string) => void;
@@ -185,9 +188,10 @@ export function CommentItem({
       return profileImage;
     }
     
-    // Otherwise, prepend base URL
+    // Otherwise, prepend base URL using environment variable
     const path = profileImage.startsWith('/') ? profileImage : `/${profileImage}`;
-    return `http://localhost:3000${path}`;
+    // Đã thay đổi: Dùng SERVER_URL thay vì hardcode localhost
+    return `${SERVER_URL}${path}`;
   };
   
   const avatarSrc = getAvatarSrc();

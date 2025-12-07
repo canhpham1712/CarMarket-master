@@ -8,6 +8,8 @@ import type {
   CommentPinnedEvent 
 } from "../types/comment.types";
 
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3000";
+
 export interface SocketMessage {
   conversationId: string;
   message: {
@@ -64,7 +66,7 @@ class SocketService {
 
     // Connect to chat namespace
     if (!this.socket?.connected) {
-      this.socket = io("http://localhost:3000/chat", {
+      this.socket = io("${SOCKET_URL}/chat", {
         query: { token },
         transports: ["websocket"],
         reconnection: true,
@@ -77,7 +79,7 @@ class SocketService {
 
     // Connect to comments namespace
     if (!this.commentsSocket?.connected) {
-      this.commentsSocket = io("http://localhost:3000/comments", {
+      this.commentsSocket = io("${SOCKET_URL}/comments", {
         query: { token },
         transports: ["websocket"],
         reconnection: true,
@@ -321,7 +323,7 @@ class SocketService {
     const namespace = 'notifications';
     this.connectionState.set(namespace, 'connecting');
     
-    this.notificationsSocket = io("http://localhost:3000/notifications", {
+    this.notificationsSocket = io("${SOCKET_URL}/notifications", {
       query: { token },
       transports: ["websocket"],
       reconnection: false, // We handle reconnection manually
