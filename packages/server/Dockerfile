@@ -73,30 +73,39 @@ RUN npm run build
 # GIAI ĐOẠN PRODUCTION
 # Thay đổi từ node:20-alpine sang node:20-slim
 # --------------------------------------------------------
+# ... (Phần Builder giữ nguyên) ...
+
+# --------------------------------------------------------
+# Production stage
+# --------------------------------------------------------
 FROM node:20-slim
 
 WORKDIR /app
 
-# Cài đặt thư viện runtime cần thiết
-# onnxruntime cần glibc (có sẵn trong slim) và có thể cần thêm libgomp1 hoặc các lib cơ bản khác
+# Cài đặt thư viện hệ thống
 RUN apt-get update -y && apt-get install -y openssl ca-certificates procps
 
 # Copy package files
 COPY package*.json ./
 COPY packages/server/package*.json ./packages/server/
 
-# Install production dependencies only
+# Install production dependencies
 RUN npm ci --production
 
-# Copy built application
-COPY --from=builder /app/packages/server/dist ./packages/server/dist
-# COPY --from=builder /app/packages/server/node_modules ./packages/server/node_modules
-
-# Create uploads directory
-RUN mkdir -p ./packages/server/uploads
-
+# Di chuyển vào thư mục server để làm việc
 WORKDIR /app/packages/server
+
+# [SỬA QUAN TRỌNG] Copy thẳng vào ./dist (ngang hàng packages.json server)
+COPY --from=builder /app/packages/server/dist ./dist
+
+# [SỬA QUAN TRỌNG] Copy init-scripts ra ngoài root (hoặc chỉnh lại đường dẫn trong script chạy)
+# Script run-init-sql.ts của bạn đang tìm ../../../../init-scripts
+# Tức là nó mong đợi init-scripts nằm ở /app/init-scripts
+COPY --from=builder /app/init-scripts /app/init-scripts
+
+RUN mkdir -p ./uploads
 
 EXPOSE 3000
 
-CMD ["node", "dist/main"]
+# Lệnh chạy tuần tự
+CMD ["/bin/sh", "-c", "node dist/scripts/run-init-sql.js && node dist/scripts/run-migrations.js && node dist/scripts/run-rbac-seed.js && node dist/main"]
