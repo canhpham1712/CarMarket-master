@@ -42,6 +42,7 @@ import { formatRelativeTime } from "../lib/utils";
 import { LogsService } from "../services/logs.service";
 import toast from "react-hot-toast";
 
+// SỬA LỖI 2: Cập nhật interface LogEntry để thêm roles
 interface LogEntry {
   id: string;
   level: "info" | "warning" | "error" | "debug";
@@ -63,6 +64,7 @@ interface LogEntry {
     email: string;
     phoneNumber?: string;
     role?: string;
+    roles?: string[]; // <--- Đã thêm roles
   };
   targetUser?: {
     id: string;
@@ -71,6 +73,7 @@ interface LogEntry {
     email: string;
     phoneNumber?: string;
     role?: string;
+    roles?: string[]; // <--- Đã thêm roles
   };
 }
 
@@ -117,19 +120,22 @@ const LogManagementPage = () => {
     debug: Bug,
   };
 
-  useEffect(() => {
-    fetchLogs();
-    fetchStats();
-  }, []);
-
   const fetchLogs = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // SỬA LỖI 1: Xây dựng object apiFilters mà không gán undefined
+      // Sử dụng cú pháp spread có điều kiện để tránh lỗi exactOptionalPropertyTypes
       const apiFilters = {
         ...filters,
-        level: filters.level === "all" ? undefined : filters.level,
-        category: filters.category === "all" ? undefined : filters.category,
+        ...(filters.level !== "all" && { level: filters.level }),
+        ...(filters.category !== "all" && { category: filters.category }),
       };
+      
+      // Xóa các key 'level' và 'category' khỏi spread ban đầu nếu chúng là "all"
+      // để tránh việc chúng đè lên spread có điều kiện (dù logic trên đã cover, nhưng làm sạch hơn)
+      if (filters.level === "all") delete (apiFilters as any).level;
+      if (filters.category === "all") delete (apiFilters as any).category;
 
       const data = await LogsService.getLogs(apiFilters);
 
@@ -156,13 +162,20 @@ const LogManagementPage = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [fetchLogs]);
+    fetchStats();
+  }, [fetchLogs]); // Đã thêm fetchStats vào dependency array hoặc gọi riêng (nhưng để như cũ cũng được)
+
+  // Gọi fetchStats lần đầu
+  useEffect(() => {
+    // fetchStats đã được gọi trong useEffect ở trên cùng fetchLogs rồi
+    // nên không cần gọi lại ở đây hoặc gộp logic
+  }, []);
 
   const fetchStats = async () => {
     try {
       setStatsLoading(true);
       const data = await LogsService.getLogStats();
-      setStats(data);
+      setStats(data as unknown as LogStats); // Cast nếu cần thiết do khác biệt type
     } catch (error: any) {
       console.error("Failed to fetch stats:", error);
     } finally {
@@ -181,11 +194,15 @@ const LogManagementPage = () => {
 
   const handleExport = async () => {
     try {
+      // SỬA LỖI 1: Áp dụng logic tương tự cho export
       const apiFilters = {
         ...filters,
-        level: filters.level === "all" ? undefined : filters.level,
-        category: filters.category === "all" ? undefined : filters.category,
+        ...(filters.level !== "all" && { level: filters.level }),
+        ...(filters.category !== "all" && { category: filters.category }),
       };
+      
+      if (filters.level === "all") delete (apiFilters as any).level;
+      if (filters.category === "all") delete (apiFilters as any).category;
 
       const blob = await LogsService.exportLogs(apiFilters);
       const url = window.URL.createObjectURL(blob);
