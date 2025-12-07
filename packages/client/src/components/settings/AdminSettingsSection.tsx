@@ -85,7 +85,7 @@ export function AdminSettingsSection({
                     } else {
                       setAdminSettings({
                         ...adminSettings,
-                        dashboardWidgets: widgets.filter((w) => w !== widget),
+                        dashboardWidgets: widgets.filter((w: string) => w !== widget),
                       });
                     }
                   }}
@@ -117,7 +117,7 @@ export function AdminSettingsSection({
                   userManagement: {
                     ...adminSettings.userManagement,
                     itemsPerPage: parseInt(e.target.value),
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -147,7 +147,7 @@ export function AdminSettingsSection({
                   listingManagement: {
                     ...adminSettings.listingManagement,
                     approvalWorkflow: e.target.value as "manual" | "auto",
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -167,7 +167,7 @@ export function AdminSettingsSection({
                   listingManagement: {
                     ...adminSettings.listingManagement,
                     bulkModeration: e.target.checked,
-                  },
+                  } as any,
                 })
               }
               className="w-4 h-4 text-primary-600 rounded"
@@ -192,4 +192,3 @@ export function AdminSettingsSection({
     </div>
   );
 }
-

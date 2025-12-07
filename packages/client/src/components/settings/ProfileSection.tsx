@@ -34,7 +34,8 @@ interface ProfileSectionProps {
   onUpdate: (data: any) => Promise<void>;
 }
 
-export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
+export function ProfileSection({ onUpdate }: ProfileSectionProps) {
+  // Đã xóa 'settings' khỏi destructuring để fix lỗi biến không sử dụng
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const { updateUser, user: authUser } = useAuthStore();
@@ -65,7 +66,17 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
 
   const onSubmit = async (data: ProfileForm) => {
     try {
-      const response = await ProfileService.updateProfile(data);
+      // Fix lỗi TS2379: Chuyển đổi các giá trị undefined thành string rỗng
+      // để khớp với định nghĩa của UpdateProfileData
+      const updateData = {
+        ...data,
+        phoneNumber: data.phoneNumber || "",
+        bio: data.bio || "",
+        location: data.location || "",
+        dateOfBirth: data.dateOfBirth || "",
+      };
+
+      const response = await ProfileService.updateProfile(updateData);
       updateUser(response);
       await onUpdate({});
       toast.success("Profile updated successfully");
@@ -125,7 +136,8 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
           {/* Avatar Section */}
           <div className="flex items-center gap-6">
             <Avatar
-              src={authUser.profileImage}
+              // Fix lỗi TS2375: Avatar src bắt buộc là string, thêm fallback ""
+              src={authUser.profileImage || ""}
               alt={`${authUser.firstName} ${authUser.lastName}`}
               size="lg"
             />
@@ -163,8 +175,11 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
               <Input
                 {...register("firstName")}
                 disabled={!isEditing}
-                error={errors.firstName?.message}
               />
+              {/* Fix lỗi TS2322: Render lỗi bên ngoài Input thay vì truyền prop error */}
+              {errors.firstName && (
+                <p className="text-sm text-red-500 mt-1">{errors.firstName.message}</p>
+              )}
             </div>
 
             <div>
@@ -174,8 +189,10 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
               <Input
                 {...register("lastName")}
                 disabled={!isEditing}
-                error={errors.lastName?.message}
               />
+              {errors.lastName && (
+                <p className="text-sm text-red-500 mt-1">{errors.lastName.message}</p>
+              )}
             </div>
 
             <div>
@@ -187,8 +204,10 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
                 type="email"
                 {...register("email")}
                 disabled={!isEditing}
-                error={errors.email?.message}
               />
+              {errors.email && (
+                <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>
+              )}
             </div>
 
             <div>
@@ -199,8 +218,10 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
               <Input
                 {...register("phoneNumber")}
                 disabled={!isEditing}
-                error={errors.phoneNumber?.message}
               />
+              {errors.phoneNumber && (
+                <p className="text-sm text-red-500 mt-1">{errors.phoneNumber.message}</p>
+              )}
             </div>
 
             <div>
@@ -211,8 +232,10 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
               <Input
                 {...register("location")}
                 disabled={!isEditing}
-                error={errors.location?.message}
               />
+              {errors.location && (
+                <p className="text-sm text-red-500 mt-1">{errors.location.message}</p>
+              )}
             </div>
 
             <div>
@@ -224,8 +247,10 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
                 type="date"
                 {...register("dateOfBirth")}
                 disabled={!isEditing}
-                error={errors.dateOfBirth?.message}
               />
+              {errors.dateOfBirth && (
+                <p className="text-sm text-red-500 mt-1">{errors.dateOfBirth.message}</p>
+              )}
             </div>
           </div>
 
@@ -239,6 +264,9 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-50"
             />
+            {errors.bio && (
+              <p className="text-sm text-red-500 mt-1">{errors.bio.message}</p>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -269,4 +297,3 @@ export function ProfileSection({ settings, onUpdate }: ProfileSectionProps) {
     </Card>
   );
 }
-

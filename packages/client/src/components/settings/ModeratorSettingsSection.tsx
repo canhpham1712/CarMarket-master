@@ -64,7 +64,7 @@ export function ModeratorSettingsSection({
                   queuePreferences: {
                     ...moderatorSettings.queuePreferences,
                     itemsPerPage: parseInt(e.target.value),
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -88,7 +88,7 @@ export function ModeratorSettingsSection({
                   queuePreferences: {
                     ...moderatorSettings.queuePreferences,
                     sortBy: e.target.value as "createdAt" | "updatedAt" | "priority",
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -111,7 +111,7 @@ export function ModeratorSettingsSection({
                   queuePreferences: {
                     ...moderatorSettings.queuePreferences,
                     sortOrder: e.target.value as "ASC" | "DESC",
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -140,7 +140,7 @@ export function ModeratorSettingsSection({
                   contentFilters: {
                     ...moderatorSettings.contentFilters,
                     autoModeration: e.target.checked,
-                  },
+                  } as any,
                 })
               }
               className="w-4 h-4 text-primary-600 rounded"
@@ -165,4 +165,3 @@ export function ModeratorSettingsSection({
     </div>
   );
 }
-

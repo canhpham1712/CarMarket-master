@@ -29,7 +29,7 @@ export class GeocodingService {
    * Convert address to coordinates
    */
   static async geocode(address: string): Promise<GeocodeResult> {
-    const response = await apiClient.get('/geocoding/geocode', {
+    const response: any = await apiClient.get('/geocoding/geocode', {
       params: { address },
     });
     return response.data;
@@ -42,7 +42,7 @@ export class GeocodingService {
     latitude: number,
     longitude: number,
   ): Promise<ReverseGeocodeResult> {
-    const response = await apiClient.get('/geocoding/reverse', {
+    const response: any = await apiClient.get('/geocoding/reverse', {
       params: { lat: latitude, lng: longitude },
     });
     return response.data;

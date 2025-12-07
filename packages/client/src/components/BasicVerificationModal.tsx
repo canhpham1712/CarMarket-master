@@ -186,7 +186,7 @@ export function BasicVerificationModal({
                       if (!userProfile.dateOfBirth) return "N/A";
                       const date = typeof userProfile.dateOfBirth === 'string'
                         ? new Date(userProfile.dateOfBirth)
-                        : userProfile.dateOfBirth instanceof Date
+                        : (userProfile.dateOfBirth as any) instanceof Date
                         ? userProfile.dateOfBirth
                         : null;
                       return date && !isNaN(date.getTime())
@@ -208,7 +208,7 @@ export function BasicVerificationModal({
                         if (!userProfile.dateOfBirth) return "";
                         const date = typeof userProfile.dateOfBirth === 'string'
                           ? new Date(userProfile.dateOfBirth)
-                          : userProfile.dateOfBirth instanceof Date
+                          : (userProfile.dateOfBirth as any) instanceof Date
                           ? userProfile.dateOfBirth
                           : null;
                         if (!date || isNaN(date.getTime())) return "";

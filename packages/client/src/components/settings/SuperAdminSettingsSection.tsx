@@ -63,7 +63,7 @@ export function SuperAdminSettingsSection({
                   systemPreferences: {
                     ...superAdminSettings.systemPreferences,
                     maintenanceMode: e.target.checked,
-                  },
+                  } as any,
                 })
               }
               className="w-4 h-4 text-primary-600 rounded"
@@ -96,7 +96,7 @@ export function SuperAdminSettingsSection({
                   auditPreferences: {
                     ...superAdminSettings.auditPreferences,
                     retentionDays: parseInt(e.target.value),
-                  },
+                  } as any,
                 })
               }
               min="1"
@@ -117,7 +117,7 @@ export function SuperAdminSettingsSection({
                   auditPreferences: {
                     ...superAdminSettings.auditPreferences,
                     exportFormat: e.target.value as "json" | "csv" | "xlsx",
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -145,7 +145,7 @@ export function SuperAdminSettingsSection({
                   databaseMaintenance: {
                     ...superAdminSettings.databaseMaintenance,
                     autoBackup: e.target.checked,
-                  },
+                  } as any,
                 })
               }
               className="w-4 h-4 text-primary-600 rounded"
@@ -167,7 +167,7 @@ export function SuperAdminSettingsSection({
                   databaseMaintenance: {
                     ...superAdminSettings.databaseMaintenance,
                     backupSchedule: e.target.value as "daily" | "weekly" | "monthly",
-                  },
+                  } as any,
                 })
               }
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -193,4 +193,3 @@ export function SuperAdminSettingsSection({
     </div>
   );
 }
-

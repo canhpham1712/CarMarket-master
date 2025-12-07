@@ -104,7 +104,7 @@ export function ViewEditStandardModal({
     }
 
     if (!hasChanges) {
-      toast.info("No changes to save");
+      toast("No changes to save", { icon: "ℹ️" });
       return;
     }
 

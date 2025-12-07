@@ -1,4 +1,4 @@
-import { Notification } from "./notification.service";
+import type { Notification as AppNotification } from "./notification.service";
 
 export interface PushSubscription {
   endpoint: string;
@@ -58,17 +58,22 @@ class PushNotificationService {
         userVisibleOnly: true,
         applicationServerKey: this.urlBase64ToUint8Array(
           import.meta.env.VITE_VAPID_PUBLIC_KEY || '',
-        ),
+        ) as BufferSource,
       });
+
+      // Lấy key từ subscription (trả về ArrayBuffer hoặc null)
+      const p256dh = subscription.getKey('p256dh');
+      const auth = subscription.getKey('auth');
 
       this.subscription = {
         endpoint: subscription.endpoint,
         keys: {
+          // Fix lỗi: getKey trả về ArrayBuffer, không cần gọi .buffer nữa
           p256dh: this.arrayBufferToBase64(
-            subscription.getKey('p256dh')?.buffer || new ArrayBuffer(0),
+            p256dh || new ArrayBuffer(0),
           ),
           auth: this.arrayBufferToBase64(
-            subscription.getKey('auth')?.buffer || new ArrayBuffer(0),
+            auth || new ArrayBuffer(0),
           ),
         },
       };
@@ -105,7 +110,7 @@ class PushNotificationService {
   /**
    * Show local notification
    */
-  showNotification(notification: Notification): void {
+  showNotification(notification: AppNotification): void {
     if (!('Notification' in window) || Notification.permission !== 'granted') {
       return;
     }
@@ -164,4 +169,3 @@ class PushNotificationService {
 }
 
 export const pushNotificationService = new PushNotificationService();
-

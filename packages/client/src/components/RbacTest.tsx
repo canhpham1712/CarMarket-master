@@ -3,8 +3,15 @@ import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import toast from 'react-hot-toast';
 
+interface TestResult {
+  status: number | string;
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
 export function RbacTest() {
-  const [testResults, setTestResults] = useState<any>({});
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
 
   const testEndpoint = async (name: string, url: string) => {
     try {

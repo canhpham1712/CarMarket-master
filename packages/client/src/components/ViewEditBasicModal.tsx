@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { Phone, User, X, CheckCircle, Edit, Eye } from "lucide-react";
+import { CheckCircle, Edit, Eye } from "lucide-react"; // Đã bỏ Phone, User, X
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { OtpVerification } from "./OtpVerification";
 import { Link } from "react-router-dom";
 import { SellerVerificationService, VerificationLevel, type SellerVerification } from "../services/seller-verification.service";
-import { ProfileService } from "../services/profile.service";
+// Đã bỏ import ProfileService vì không dùng
 import toast from "react-hot-toast";
 import type { User as UserType } from "../types";
 
@@ -59,7 +59,8 @@ export function ViewEditBasicModal({
     }
 
     if (!hasChanges) {
-      toast.info("No changes to save");
+      // SỬA LỖI: Thay toast.info (không tồn tại) bằng toast với icon
+      toast("No changes to save", { icon: "ℹ️" });
       return;
     }
 
@@ -229,4 +230,3 @@ export function ViewEditBasicModal({
     </Dialog>
   );
 }
-
