@@ -34,46 +34,66 @@
 # Dockerfiile này dành cho giai đoạn production của server
 
 # ... (Phần builder giữ nguyên) ...
+# --------------------------------------------------------
+# Builder Stage
+# --------------------------------------------------------
 FROM node:20-slim AS builder
+
 WORKDIR /app
+
+# Cài đặt thư viện hệ thống cho build
 RUN apt-get update -y && apt-get install -y openssl
+
+# Copy toàn bộ package files
 COPY package*.json ./
 COPY packages/server/package*.json ./packages/server/
 COPY packages/client/package*.json ./packages/client/
+
+# Install dependencies
 RUN npm ci
+
+# Copy toàn bộ source code
 COPY . .
+
+# Build application (Biên dịch TS -> JS vào thư mục dist)
 RUN npm run build
 
 # --------------------------------------------------------
-# Production stage
+# Production Stage
 # --------------------------------------------------------
 FROM node:20-slim
 
 WORKDIR /app
 
-# Cài đặt thư viện hệ thống
+# Cài đặt thư viện runtime (quan trọng cho onnxruntime, postgres, etc.)
 RUN apt-get update -y && apt-get install -y openssl ca-certificates procps
 
+# Copy package.json để cài dependencies
 COPY package*.json ./
 COPY packages/server/package*.json ./packages/server/
 
+# Chỉ cài production dependencies
 RUN npm ci --production
 
-# Copy built application
+# --- BẮT ĐẦU PHẦN SỬA ---
+
+# Di chuyển vào thư mục làm việc của server
+WORKDIR /app/packages/server
+
+# 1. Copy thư mục dist ĐÚNG CHỖ (Sửa lỗi đường dẫn lồng nhau)
 COPY --from=builder /app/packages/server/dist ./dist
 
-# [QUAN TRỌNG] Copy thư mục init-scripts để script có thể đọc file .sql
+# 2. Copy thư mục init-scripts từ root vào đúng chỗ để script đọc được
+# Vì script chạy từ /app/packages/server, nên init-scripts nên để ở /app/init-scripts
 COPY --from=builder /app/init-scripts /app/init-scripts
 
-RUN mkdir -p ./packages/server/uploads
+# --- KẾT THÚC PHẦN SỬA ---
 
-WORKDIR /app/packages/server
+# Tạo thư mục uploads
+RUN mkdir -p ./uploads
 
 EXPOSE 3000
 
-# [CẬP NHẬT] Lệnh khởi động chạy tuần tự 4 bước:
-# 1. Chạy Init SQL (file .sql raw)
-# 2. Chạy Migrations (TypeORM)
-# 3. Chạy Seed RBAC (Data)
-# 4. Start Server
+# Lệnh khởi động tuần tự
+# Lưu ý: Đảm bảo bạn đã tạo file run-init-sql.ts và run-migrations.ts trong src/scripts trước khi build
 CMD ["/bin/sh", "-c", "node dist/scripts/run-init-sql.js && node dist/scripts/run-migrations.js && node dist/scripts/run-rbac-seed.js && node dist/main"]
