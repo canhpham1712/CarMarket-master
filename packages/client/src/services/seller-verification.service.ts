@@ -33,6 +33,7 @@ export interface VerificationDocument {
 }
 
 export interface SellerVerification {
+  rejectedAt: string | Date;
   id: string;
   userId: string;
   status: VerificationStatus;

@@ -151,7 +151,7 @@ export function RbacManagement() {
     } else {
       console.log('Skipping API calls - not authenticated or not admin');
     }
-  }, [isAuthenticated, user?.role]);
+  }, [isAuthenticated, user?.roles]);
 
   const getRoleName = (roleId: string) => {
     const role = roles.find(r => r.id === roleId);
