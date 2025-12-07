@@ -1,12 +1,10 @@
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
-import { RbacSeed } from './rbac-seed';
 import * as path from 'path';
 
-// Load environment variables
 config();
 
-async function runSeed() {
+async function runMigrations() {
   const dataSource = new DataSource({
     type: 'postgres',
     host: process.env.DATABASE_HOST || 'localhost',
@@ -14,26 +12,27 @@ async function runSeed() {
     username: process.env.DATABASE_USERNAME!,
     password: process.env.DATABASE_PASSWORD!,
     database: process.env.DATABASE_NAME!,
-    // SỬA DÒNG NÀY: Dùng đường dẫn tương đối để chạy được cả dev (src) và prod (dist)
+    // Đường dẫn tương đối đến entities và migrations
     entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')],
+    migrations: [path.join(__dirname, '../migrations/*{.ts,.js}')],
     synchronize: false,
     logging: true,
   });
 
   try {
     await dataSource.initialize();
-    console.log('Database connection established');
+    console.log('Database connection established for Migrations');
 
-    const seed = new RbacSeed(dataSource);
-    await seed.seed();
-
-    console.log('✅ RBAC seed completed successfully');
+    console.log('Running migrations...');
+    const migrations = await dataSource.runMigrations();
+    console.log(`✅ Migrations completed. Executed ${migrations.length} migrations.`);
+    
   } catch (error) {
-    console.error('❌ Error during RBAC seed:', error);
+    console.error('❌ Error during migrations:', error);
     process.exit(1);
   } finally {
     await dataSource.destroy();
   }
 }
 
-runSeed();
+runMigrations();

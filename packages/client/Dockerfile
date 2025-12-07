@@ -33,53 +33,47 @@
 # --------------------------------------------------------
 # Dockerfiile này dành cho giai đoạn production của server
 
-FROM node:20-alpine AS builder
-
+# ... (Phần builder giữ nguyên) ...
+FROM node:20-slim AS builder
 WORKDIR /app
-
-# Copy package files
+RUN apt-get update -y && apt-get install -y openssl
 COPY package*.json ./
 COPY packages/server/package*.json ./packages/server/
 COPY packages/client/package*.json ./packages/client/
-
-# Install dependencies
 RUN npm ci
-
-# Copy source code
 COPY . .
-
-# Build application
 RUN npm run build
 
 # --------------------------------------------------------
-# SỬA ĐỔI: Chuyển sang node:20-slim (Debian based) thay vì alpine
-# để hỗ trợ glibc cần thiết cho onnxruntime
+# Production stage
 # --------------------------------------------------------
 FROM node:20-slim
 
 WORKDIR /app
 
-# Cài đặt các thư viện hệ thống cần thiết (nếu cần thiết cho các native modules khác)
-# Với node:20-slim, glibc đã có sẵn nên onnxruntime sẽ chạy tốt.
-# Nếu bạn dùng Prisma, có thể cần thêm openssl:
-RUN apt-get update -y && apt-get install -y openssl ca-certificates
+# Cài đặt thư viện hệ thống
+RUN apt-get update -y && apt-get install -y openssl ca-certificates procps
 
-# Copy package files
 COPY package*.json ./
 COPY packages/server/package*.json ./packages/server/
 
-# Install production dependencies only
 RUN npm ci --production
 
 # Copy built application
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
-# COPY --from=builder /app/packages/server/node_modules ./packages/server/node_modules
 
-# Create uploads directory
+# [QUAN TRỌNG] Copy thư mục init-scripts để script có thể đọc file .sql
+COPY --from=builder /app/init-scripts /app/init-scripts
+
 RUN mkdir -p ./packages/server/uploads
 
 WORKDIR /app/packages/server
 
 EXPOSE 3000
 
-CMD ["node", "dist/main"]
+# [CẬP NHẬT] Lệnh khởi động chạy tuần tự 4 bước:
+# 1. Chạy Init SQL (file .sql raw)
+# 2. Chạy Migrations (TypeORM)
+# 3. Chạy Seed RBAC (Data)
+# 4. Start Server
+CMD ["/bin/sh", "-c", "node dist/scripts/run-init-sql.js && node dist/scripts/run-migrations.js && node dist/scripts/run-rbac-seed.js && node dist/main"]
