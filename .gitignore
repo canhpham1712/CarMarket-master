@@ -118,7 +118,7 @@ public
 Thumbs.db
 
 # Logs
-logs
+/logs
 *.log
 
 # Build outputs
