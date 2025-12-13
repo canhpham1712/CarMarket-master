@@ -38,6 +38,7 @@ import { useAuthStore } from "./store/auth";
 import { useEffect } from "react";
 import CarValuationPage from "./pages/CarValuationPage";
 import ScrollToTop from "./components/ScrollToTop";
+import { SearchPage } from "./pages/SearchPage";
 
 function App() {
   const initialize = useAuthStore((state) => state.initialize);
@@ -68,6 +69,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Layout />}>
                   <Route index element={<HomePage />} />
+                  <Route path="/search" element={<SearchPage />} />
                   <Route
                     path="/login"
                     element={
