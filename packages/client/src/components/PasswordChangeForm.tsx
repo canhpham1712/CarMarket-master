@@ -174,8 +174,9 @@ export function PasswordChangeForm() {
           <div className="flex justify-end">
             <Button
               type="submit"
+              variant="outline"
               disabled={isSubmitting}
-              className="bg-blue-600 text-white hover:bg-blue-700"
+              // className="bg-blue-600 text-white hover:bg-blue-700"
             >
               {isSubmitting ? (
                 <>

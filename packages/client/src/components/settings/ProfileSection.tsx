@@ -287,7 +287,11 @@ export function ProfileSection({ onUpdate }: ProfileSectionProps) {
                 </Button>
               </>
             ) : (
-              <Button type="button" onClick={() => setIsEditing(true)}>
+              <Button 
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditing(true)}
+              >
                 Edit Profile
               </Button>
             )}

@@ -51,17 +51,8 @@ export function SecuritySection({ settings, onUpdate }: SecuritySectionProps) {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            Change Password
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PasswordChangeForm />
-        </CardContent>
-      </Card>
+      {/* SỬA Ở ĐÂY: Gọi trực tiếp component, không bọc trong Card nữa */}
+      <PasswordChangeForm />
 
       <Card>
         <CardHeader>
