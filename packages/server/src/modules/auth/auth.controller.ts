@@ -145,8 +145,31 @@ export class AuthController {
       // Check if user was authenticated by the guard
       if (!req.user) {
         this.logger.warn('Google OAuth callback: No user in request');
-        redirectUrl.searchParams.set('error', 'oauth_failed');
-        redirectUrl.searchParams.set('message', 'OAuth authentication failed. Please try again.');
+        
+        // Check if there's an error in query params from Google
+        const error = req.query.error;
+        const errorDescription = req.query.error_description;
+        
+        if (error) {
+          this.logger.error(`Google OAuth error from callback: ${error} - ${errorDescription || 'No description'}`);
+          
+          // Provide more specific error messages
+          let userMessage = 'OAuth authentication failed. Please try again.';
+          if (error === 'access_denied') {
+            userMessage = 'Authentication was cancelled. Please try again.';
+          } else if (error === 'invalid_client') {
+            userMessage = 'OAuth configuration error. Please contact support.';
+          } else if (error === 'redirect_uri_mismatch') {
+            userMessage = 'OAuth configuration error. Please contact support.';
+          }
+          
+          redirectUrl.searchParams.set('error', 'oauth_failed');
+          redirectUrl.searchParams.set('message', userMessage);
+        } else {
+          redirectUrl.searchParams.set('error', 'oauth_failed');
+          redirectUrl.searchParams.set('message', 'OAuth authentication failed. Please try again.');
+        }
+        
         return res.redirect(redirectUrl.toString());
       }
 

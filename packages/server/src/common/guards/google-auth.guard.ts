@@ -29,7 +29,32 @@ export class GoogleAuthGuard extends AuthGuard('google') {
   override handleRequest(err: any, user: any, info: any, _context: ExecutionContext) {
     // If there's an error or no user, log it but don't throw
     if (err) {
-      this.logger.error('Google OAuth error in handleRequest:', err);
+      // Log detailed error information
+      const errorDetails: any = {
+        message: err.message,
+        code: err.code,
+        status: err.status,
+        uri: err.uri,
+      };
+      
+      // Add stack trace in development
+      if (process.env.NODE_ENV === 'development') {
+        errorDetails.stack = err.stack;
+      }
+      
+      this.logger.error('Google OAuth error in handleRequest:', errorDetails);
+      
+      // Log specific error messages for common issues
+      if (err.code === 'invalid_client') {
+        this.logger.error(
+          'Invalid client error - Check: 1) Client ID/Secret are correct, 2) Callback URL matches Google Console config'
+        );
+      } else if (err.code === 'redirect_uri_mismatch') {
+        this.logger.error(
+          'Redirect URI mismatch - Callback URL in code does not match Google Console configuration'
+        );
+      }
+      
       return null;
     }
     

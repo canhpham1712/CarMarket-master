@@ -12,6 +12,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     configService: ConfigService,
   ) {
     let callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL')!;
+    const clientID = configService.get<string>('GOOGLE_CLIENT_ID')!;
+    const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET')!;
     
     // Ensure callback URL includes /api prefix if not already present
     // This handles cases where the URL might be missing the /api prefix due to global prefix
@@ -21,11 +23,23 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
     
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID')!,
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET')!,
+      clientID,
+      clientSecret,
       callbackURL,
       scope: ['email', 'profile'],
     } as const);
+    
+    // Log configuration for debugging (without exposing secrets) - after super()
+    this.logger.log(`Google OAuth configured with callback URL: ${callbackURL}`);
+    this.logger.log(`Google OAuth Client ID: ${clientID ? `${clientID.substring(0, 10)}...` : 'NOT SET'}`);
+    
+    if (!clientID || !clientSecret) {
+      this.logger.error('Google OAuth credentials are missing!');
+    }
+    
+    if (!callbackURL) {
+      this.logger.error('Google OAuth callback URL is not set!');
+    }
   }
 
   async validate(
