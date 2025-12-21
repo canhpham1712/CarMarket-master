@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { SOCKET_URL } from '../lib/constants';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: '${SOCKET_URL}',
+  baseURL: SOCKET_URL,
   timeout: 10000,
 });
 

@@ -262,9 +262,12 @@ export class AuthService {
     const { providerId, email, firstName, lastName, profileImage } = profile;
 
     // Check if user exists with this provider
-    let user = await this.userRepository.findOne({
-      where: { providerId, provider },
-    });
+    // Use query builder to explicitly reference the database column names (provider_id)
+    let user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.provider_id = :providerId', { providerId })
+      .andWhere('user.provider = :provider', { provider })
+      .getOne();
 
     if (!user) {
       // Check if user exists with this email but different provider

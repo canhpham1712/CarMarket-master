@@ -70,10 +70,11 @@ export class User {
     type: 'enum',
     enum: OAuthProvider,
     default: OAuthProvider.LOCAL,
+    select: false,
   })
   provider!: OAuthProvider;
 
-  @Column({ name: "provider_id", type: 'varchar', length: 255, nullable: true })
+  @Column({ name: "provider_id", type: 'varchar', length: 255, nullable: true, select: false })
   providerId!: string;
 
   @CreateDateColumn()

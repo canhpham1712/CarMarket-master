@@ -137,11 +137,6 @@ export function RecommendationsSection({
             {recommendations.map((listing) => (
               <div key={listing.id} className="relative w-full sm:w-[calc(50%-0.75rem)] lg:w-[320px] xl:w-[320px] max-w-sm">
                 <CarCard listing={listing} compact={true} />
-                {listing.recommendationReason && (
-                  <div className="mt-2 text-xs text-gray-500 px-2">
-                    <span className="font-medium">Why:</span> {listing.recommendationReason}
-                  </div>
-                )}
               </div>
             ))}
           </div>
