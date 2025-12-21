@@ -9,6 +9,7 @@ import {
   Request,
   Res,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -25,7 +26,10 @@ import { LogCategory } from '../../entities/activity-log.entity';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
@@ -134,14 +138,16 @@ export class AuthController {
       const authResponse = await this.authService.validateOAuthUser(req.user, OAuthProvider.GOOGLE);
       
       // Redirect to frontend with tokens as query params
-      const redirectUrl = new URL('http://localhost:5173/auth/callback');
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+      const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
       redirectUrl.searchParams.set('token', authResponse.accessToken);
       redirectUrl.searchParams.set('success', 'true');
       
       res.redirect(redirectUrl.toString());
     } catch (error) {
       // Redirect to frontend with error
-      const redirectUrl = new URL('http://localhost:5173/auth/callback');
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+      const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
       redirectUrl.searchParams.set('error', 'oauth_failed');
       redirectUrl.searchParams.set('message', error.message);
       

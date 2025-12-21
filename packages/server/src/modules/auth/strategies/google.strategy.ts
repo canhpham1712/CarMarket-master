@@ -9,10 +9,19 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
     configService: ConfigService,
   ) {
+    let callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL')!;
+    
+    // Ensure callback URL includes /api prefix if not already present
+    // This handles cases where the URL might be missing the /api prefix due to global prefix
+    if (callbackURL && !callbackURL.includes('/api/')) {
+      // Replace /auth/google/callback with /api/auth/google/callback
+      callbackURL = callbackURL.replace('/auth/google/callback', '/api/auth/google/callback');
+    }
+    
     super({
       clientID: configService.get<string>('GOOGLE_CLIENT_ID')!,
       clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET')!,
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL')!,
+      callbackURL,
       scope: ['email', 'profile'],
     } as const);
   }
