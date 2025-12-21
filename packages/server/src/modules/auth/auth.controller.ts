@@ -128,37 +128,35 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
-  @LogAction({
-    category: LogCategory.AUTHENTICATION,
-    message: 'Google OAuth Login',
-    description: 'User logged in via Google OAuth',
-  })
+  // Temporarily removed @LogAction to debug OAuth issue
+  // @LogAction({
+  //   category: LogCategory.AUTHENTICATION,
+  //   message: 'Google OAuth Login',
+  //   description: 'User logged in via Google OAuth',
+  // })
   async googleAuthCallback(@Request() req: any, @Res() res: any) {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+    const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
     
-    try {
-      // Check if user was authenticated by the guard
-      if (!req.user) {
-        throw new Error('OAuth authentication failed: User profile not received');
-      }
+    // Check if user was authenticated by the guard
+    if (!req.user) {
+      redirectUrl.searchParams.set('error', 'oauth_failed');
+      redirectUrl.searchParams.set('message', 'OAuth authentication failed');
+      return res.redirect(redirectUrl.toString());
+    }
 
+    try {
       const authResponse = await this.authService.validateOAuthUser(req.user, OAuthProvider.GOOGLE);
       
       // Redirect to frontend with tokens as query params
-      const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
       redirectUrl.searchParams.set('token', authResponse.accessToken);
       redirectUrl.searchParams.set('success', 'true');
-      
-      res.redirect(redirectUrl.toString());
+      return res.redirect(redirectUrl.toString());
     } catch (error) {
-      console.error('Google OAuth callback error:', error);
-      
       // Redirect to frontend with error
-      const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
       redirectUrl.searchParams.set('error', 'oauth_failed');
       redirectUrl.searchParams.set('message', error.message || 'OAuth authentication failed');
-      
-      res.redirect(redirectUrl.toString());
+      return res.redirect(redirectUrl.toString());
     }
   }
 

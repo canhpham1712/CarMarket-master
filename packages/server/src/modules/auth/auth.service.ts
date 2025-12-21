@@ -279,6 +279,8 @@ export class AuthService {
         // Link OAuth account to existing user
         existingUser.providerId = providerId;
         existingUser.provider = provider;
+        existingUser.isActive = true; // Ensure user is active when linking OAuth
+        existingUser.isEmailVerified = true; // OAuth users are considered email verified
         if (profileImage && !existingUser.profileImage) {
           existingUser.profileImage = profileImage;
         }
@@ -303,6 +305,13 @@ export class AuthService {
         
         // Assign default 'buyer' role to new OAuth user
         await this.assignDefaultRole(user.id);
+      }
+    } else {
+      // User exists with this provider, ensure they are active
+      if (!user.isActive) {
+        user.isActive = true;
+        user.isEmailVerified = true; // OAuth users are considered email verified
+        user = await this.userRepository.save(user);
       }
     }
 
