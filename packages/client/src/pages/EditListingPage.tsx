@@ -13,6 +13,8 @@ import {
   Car,
   Camera,
   Video,
+  Calculator,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -28,7 +30,7 @@ import { useMetadata } from "../services/metadata.service";
 import type { ListingDetail } from "../types";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
 import { LocationPicker } from "../components/LocationPicker";
-import { CarValuation } from "../components/CarValuation";
+import { Link } from "react-router-dom";
 import { SOCKET_URL } from "../lib/constants";
 
 const editListingSchema = z.object({
@@ -119,12 +121,6 @@ export function EditListingPage() {
     },
   });
 
-  // Watch form values for car valuation
-  const currentMake = watch("make");
-  const currentModel = watch("model");
-  const currentYear = watch("year");
-  const currentMileage = watch("mileage");
-  const currentColor = watch("color");
 
   useEffect(() => {
     if (id) {
@@ -685,18 +681,31 @@ export function EditListingPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label
-                  htmlFor="price"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Price ($)
-                </label>
-                <Input
-                  id="price"
-                  type="number"
-                  {...register("price", { valueAsNumber: true })}
-                  className={errors.price ? "border-red-500" : ""}
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label
+                    htmlFor="price"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Price ($)
+                  </label>
+                  <Link
+                    to="/valuation"
+                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    target="_blank"
+                  >
+                    <Calculator className="w-3 h-3" />
+                    Get Price Estimate
+                  </Link>
+                </div>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="price"
+                    type="number"
+                    {...register("price", { valueAsNumber: true })}
+                    className={`pl-10 ${errors.price ? "border-red-500" : ""}`}
+                  />
+                </div>
                 {errors.price && (
                   <p className="mt-1 text-sm text-red-600">
                     {errors.price.message}
@@ -727,23 +736,6 @@ export function EditListingPage() {
                   error={!!errors.priceType}
                 />
               </div>
-            </div>
-
-            {/* Car Valuation Component */}
-            <div className="mt-4">
-              <CarValuation
-                brand={currentMake || ""}
-                model={currentModel || ""}
-                year={currentYear || 0}
-                mileage={currentMileage ? Math.round(currentMileage * 1.60934) : 0} // Convert miles to km
-                color={currentColor || undefined}
-                onPriceEstimate={(price) => {
-                  // Convert from million VND to USD (approximate rate, adjust as needed)
-                  // 1 million VND ≈ 40 USD (adjust this rate)
-                  const priceInUSD = Math.round(price * 40);
-                  setValue("price", priceInUSD);
-                }}
-              />
             </div>
 
             <div>
