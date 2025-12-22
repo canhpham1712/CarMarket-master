@@ -28,6 +28,7 @@ import { useMetadata } from "../services/metadata.service";
 import type { ListingDetail } from "../types";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
 import { LocationPicker } from "../components/LocationPicker";
+import { CarValuation } from "../components/CarValuation";
 import { SOCKET_URL } from "../lib/constants";
 
 const editListingSchema = z.object({
@@ -106,6 +107,7 @@ export function EditListingPage() {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<EditListingForm>({
     resolver: zodResolver(editListingSchema),
@@ -116,6 +118,13 @@ export function EditListingPage() {
       country: "USA",
     },
   });
+
+  // Watch form values for car valuation
+  const currentMake = watch("make");
+  const currentModel = watch("model");
+  const currentYear = watch("year");
+  const currentMileage = watch("mileage");
+  const currentColor = watch("color");
 
   useEffect(() => {
     if (id) {
@@ -718,6 +727,23 @@ export function EditListingPage() {
                   error={!!errors.priceType}
                 />
               </div>
+            </div>
+
+            {/* Car Valuation Component */}
+            <div className="mt-4">
+              <CarValuation
+                brand={currentMake || ""}
+                model={currentModel || ""}
+                year={currentYear || 0}
+                mileage={currentMileage ? Math.round(currentMileage * 1.60934) : 0} // Convert miles to km
+                color={currentColor || undefined}
+                onPriceEstimate={(price) => {
+                  // Convert from million VND to USD (approximate rate, adjust as needed)
+                  // 1 million VND ≈ 40 USD (adjust this rate)
+                  const priceInUSD = Math.round(price * 40);
+                  setValue("price", priceInUSD);
+                }}
+              />
             </div>
 
             <div>

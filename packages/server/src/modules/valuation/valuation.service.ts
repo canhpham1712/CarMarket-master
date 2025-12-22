@@ -20,42 +20,84 @@ export class ValuationService {
     const url = `${this.valuationServiceUrl}/predict`;
     console.log(`[ValuationService] Calling FastAPI at: ${url}`);
     console.log(`[ValuationService] Payload:`, payload);
-    try {
-      const response = await axios.post(url, payload, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      console.log(`[ValuationService] Response received:`, response.status);
-      return response.data;
-    } catch (error) {
-      console.error(`[ValuationService] Error details:`, {
-        url,
-        code: axios.isAxiosError(error) ? error.code : 'unknown',
-        message: error instanceof Error ? error.message : String(error),
-        response: axios.isAxiosError(error) && error.response
-          ? {
-              status: error.response.status,
-              data: error.response.data,
-            }
-          : null,
-      });
-      if (axios.isAxiosError(error)) {
-        if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
-          throw new Error(
-            `Cannot connect to valuation service at ${this.valuationServiceUrl}. Please ensure the FastAPI service is running on port 8001.`,
-          );
+    
+    // Retry logic for Render free tier (service might be sleeping)
+    const maxRetries = 2;
+    let lastError: any;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // First attempt: normal timeout
+        // Retry attempts: longer timeout to allow service to wake up
+        const timeout = attempt === 0 ? 10000 : 30000;
+        
+        if (attempt > 0) {
+          console.log(`[ValuationService] Retry attempt ${attempt}/${maxRetries} with longer timeout...`);
+          // Wait a bit before retry to allow service to wake up
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        if (error.response) {
-          throw new Error(
-            `Valuation service error: ${error.response.status} - ${JSON.stringify(error.response.data)}`,
-          );
+        
+        const response = await axios.post(url, payload, {
+          timeout,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        console.log(`[ValuationService] Response received:`, response.status);
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        // If it's a connection error and we have retries left, continue loop
+        if (axios.isAxiosError(error)) {
+          const isConnectionError = 
+            error.code === 'ECONNREFUSED' || 
+            error.code === 'ECONNRESET' ||
+            error.code === 'ETIMEDOUT' ||
+            (error.response && error.response.status >= 500);
+          
+          if (isConnectionError && attempt < maxRetries) {
+            console.log(`[ValuationService] Connection error, will retry...`);
+            continue;
+          }
         }
-        throw new Error(`Network error: ${error.message}`);
+        
+        // If we've exhausted retries or it's not a retryable error, break
+        break;
       }
-      throw error;
     }
+    
+    // Handle final error after all retries
+    console.error(`[ValuationService] Error details after ${maxRetries + 1} attempts:`, {
+      url,
+      code: axios.isAxiosError(lastError) ? lastError.code : 'unknown',
+      message: lastError instanceof Error ? lastError.message : String(lastError),
+      response: axios.isAxiosError(lastError) && lastError.response
+        ? {
+            status: lastError.response.status,
+            data: lastError.response.data,
+          }
+        : null,
+    });
+    
+    if (axios.isAxiosError(lastError)) {
+      if (lastError.code === 'ECONNREFUSED' || lastError.code === 'ECONNRESET') {
+        throw new Error(
+          `Cannot connect to valuation service at ${this.valuationServiceUrl}. The service might be sleeping (free tier) or not running. Please try again in a few seconds.`,
+        );
+      }
+      if (lastError.code === 'ETIMEDOUT') {
+        throw new Error(
+          `Valuation service timeout. The service might be waking up from sleep. Please try again.`,
+        );
+      }
+      if (lastError.response) {
+        throw new Error(
+          `Valuation service error: ${lastError.response.status} - ${JSON.stringify(lastError.response.data)}`,
+        );
+      }
+      throw new Error(`Network error: ${lastError.message}`);
+    }
+    throw lastError;
   }
 }
 

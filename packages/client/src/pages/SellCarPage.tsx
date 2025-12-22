@@ -29,6 +29,7 @@ import { ListingService } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import { DraggableImageGallery } from "../components/DraggableImageGallery";
 import { LocationPicker } from "../components/LocationPicker";
+import { CarValuation } from "../components/CarValuation";
 import { usePermissions } from "../hooks/usePermissions";
 import { Link } from "react-router-dom";
 
@@ -116,6 +117,10 @@ export function SellCarPage() {
   });
 
   const currentModel = watch("model");
+  const currentMake = watch("make");
+  const currentYear = watch("year");
+  const currentMileage = watch("mileage");
+  const currentColor = watch("color");
 
   // Load models when make is selected
   useEffect(() => {
@@ -534,6 +539,23 @@ export function SellCarPage() {
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Car Valuation Component */}
+            <div className="mt-4">
+              <CarValuation
+                brand={currentMake || ""}
+                model={currentModel || ""}
+                year={currentYear || 0}
+                mileage={currentMileage ? Math.round(currentMileage * 1.60934) : 0} // Convert miles to km
+                color={currentColor || undefined}
+                onPriceEstimate={(price) => {
+                  // Convert from million VND to USD (approximate rate, adjust as needed)
+                  // 1 million VND ≈ 40 USD (adjust this rate)
+                  const priceInUSD = Math.round(price * 40);
+                  setValue("price", priceInUSD);
+                }}
+              />
             </div>
 
             <div>

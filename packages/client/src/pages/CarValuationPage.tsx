@@ -167,7 +167,7 @@ export const CarValuationPage: React.FC = () => {
     setResult(null);
 
     if (!make || !model || !year) {
-      setError('Vui lòng chọn đầy đủ thông tin: Hãng xe, Dòng xe và Năm sản xuất');
+      setError('Please select all required information: Make, Model, and Year');
       return;
     }
 
@@ -184,7 +184,7 @@ export const CarValuationPage: React.FC = () => {
       });
       setResult(data);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.response?.data?.message || 'Không thể định giá xe, vui lòng thử lại.');
+      setError(err?.response?.data?.detail || err?.response?.data?.message || 'Unable to estimate car price, please try again.');
     } finally {
       setLoading(false);
     }
@@ -192,15 +192,15 @@ export const CarValuationPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-4">Định giá xe cũ</h1>
+      <h1 className="text-2xl font-bold mb-4">Used Car Valuation</h1>
       <p className="text-sm text-gray-600 mb-6">
-        Nhập thông tin về xe để nhận ước tính giá dựa trên mô hình Machine Learning (Random Forest). 
-        Model được train trên dữ liệu từ bonbanh.com và oto.com.vn với độ chính xác R² = 0.959.
+        Enter car information to get a price estimate based on our Machine Learning model (Random Forest). 
+        The model was trained on data from bonbanh.com and oto.com.vn with an accuracy of R² = 0.959.
       </p>
 
       <form onSubmit={handleSubmit} className="grid gap-4 max-w-xl">
         <div>
-          <label className="block text-sm font-medium mb-1">Hãng xe *</label>
+          <label className="block text-sm font-medium mb-1">Car Make *</label>
           <select
             value={make}
             onChange={(e) => setMake(e.target.value)}
@@ -208,18 +208,18 @@ export const CarValuationPage: React.FC = () => {
             required
             disabled={loadingMakes}
           >
-            <option value="">-- Chọn hãng xe --</option>
+            <option value="">-- Select Make --</option>
             {makes.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
             ))}
           </select>
-          {loadingMakes && <p className="text-xs text-gray-500 mt-1">Đang tải...</p>}
+          {loadingMakes && <p className="text-xs text-gray-500 mt-1">Loading...</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Dòng xe / Model *</label>
+          <label className="block text-sm font-medium mb-1">Car Model *</label>
           <select
             value={model}
             onChange={(e) => setModel(e.target.value)}
@@ -227,19 +227,19 @@ export const CarValuationPage: React.FC = () => {
             required
             disabled={!make || loadingModels}
           >
-            <option value="">-- Chọn dòng xe --</option>
+            <option value="">-- Select Model --</option>
             {models.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
             ))}
           </select>
-          {loadingModels && <p className="text-xs text-gray-500 mt-1">Đang tải...</p>}
+          {loadingModels && <p className="text-xs text-gray-500 mt-1">Loading...</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Năm sản xuất *</label>
+            <label className="block text-sm font-medium mb-1">Year *</label>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value ? Number(e.target.value) : '')}
@@ -247,18 +247,18 @@ export const CarValuationPage: React.FC = () => {
               required
               disabled={!model || loadingYears}
             >
-              <option value="">-- Chọn năm --</option>
+              <option value="">-- Select Year --</option>
               {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
               ))}
             </select>
-            {loadingYears && <p className="text-xs text-gray-500 mt-1">Đang tải...</p>}
+            {loadingYears && <p className="text-xs text-gray-500 mt-1">Loading...</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Số km đã đi *</label>
+            <label className="block text-sm font-medium mb-1">Mileage (km) *</label>
             <input
               type="number"
               value={mileage}
@@ -273,7 +273,7 @@ export const CarValuationPage: React.FC = () => {
         {versions.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
-              Phiên bản xe <span className="text-gray-500">(tùy chọn)</span>
+              Car Version <span className="text-gray-500">(optional)</span>
             </label>
             <select
               value={version}
@@ -281,21 +281,21 @@ export const CarValuationPage: React.FC = () => {
               className="border rounded px-3 py-2 w-full"
               disabled={!year || loadingVersions}
             >
-              <option value="">-- Chọn phiên bản --</option>
+              <option value="">-- Select Version --</option>
               {versions.map((v) => (
                 <option key={v} value={v}>
                   {v}
                 </option>
               ))}
             </select>
-            {loadingVersions && <p className="text-xs text-gray-500 mt-1">Đang tải...</p>}
+            {loadingVersions && <p className="text-xs text-gray-500 mt-1">Loading...</p>}
           </div>
         )}
 
         {colors.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
-              Màu xe <span className="text-gray-500">(tùy chọn)</span>
+              Color <span className="text-gray-500">(optional)</span>
             </label>
             <select
               value={color}
@@ -303,14 +303,14 @@ export const CarValuationPage: React.FC = () => {
               className="border rounded px-3 py-2 w-full"
               disabled={!year || loadingColors}
             >
-              <option value="">-- Chọn màu --</option>
+              <option value="">-- Select Color --</option>
               {colors.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </select>
-            {loadingColors && <p className="text-xs text-gray-500 mt-1">Đang tải...</p>}
+            {loadingColors && <p className="text-xs text-gray-500 mt-1">Loading...</p>}
           </div>
         )}
 
@@ -319,7 +319,7 @@ export const CarValuationPage: React.FC = () => {
           className="bg-blue-600 text-white rounded px-4 py-2 mt-2 disabled:opacity-60"
           disabled={loading || !make || !model || !year}
         >
-          {loading ? 'Đang định giá...' : 'Định giá'}
+          {loading ? 'Estimating...' : 'Estimate Price'}
         </button>
       </form>
 
@@ -327,43 +327,43 @@ export const CarValuationPage: React.FC = () => {
 
       {result && (
         <div className="mt-6 border rounded-lg px-6 py-5 bg-gradient-to-br from-blue-50 to-indigo-50 max-w-xl shadow-lg">
-          <h2 className="text-xl font-bold mb-4 text-gray-800">💰 Kết quả ước tính giá</h2>
+          <h2 className="text-xl font-bold mb-4 text-gray-800">💰 Price Estimate Result</h2>
           
           <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
             <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Giá dự đoán</p>
+              <p className="text-sm text-gray-600 mb-1">Estimated Price</p>
               <p className="text-3xl font-bold text-blue-600">
-                {Math.round(result.price_estimate).toLocaleString('vi-VN')} triệu VND
+                {Math.round(result.price_estimate).toLocaleString('en-US')} million VND
               </p>
             </div>
           </div>
 
           <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
-            <p className="text-sm text-gray-600 mb-2">📊 Khoảng giá tham khảo:</p>
+            <p className="text-sm text-gray-600 mb-2">📊 Price Range:</p>
             <p className="text-lg font-semibold text-gray-800">
-              {Math.round(result.price_min).toLocaleString('vi-VN')} - {Math.round(result.price_max).toLocaleString('vi-VN')} triệu VND
+              {Math.round(result.price_min).toLocaleString('en-US')} - {Math.round(result.price_max).toLocaleString('en-US')} million VND
             </p>
           </div>
 
           {result.confidence_level && (
             <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
-              <p className="text-sm text-gray-600 mb-1">✅ Độ tin cậy:</p>
+              <p className="text-sm text-gray-600 mb-1">✅ Confidence Level:</p>
               <p className="font-semibold text-green-600">{result.confidence_level}</p>
             </div>
           )}
 
           {result.mae_estimate && (
             <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
-              <p className="text-sm text-gray-600 mb-1">⚠️ Sai số ước tính:</p>
-              <p className="font-semibold text-orange-600">±{Math.round(result.mae_estimate).toLocaleString('vi-VN')} triệu VND</p>
+              <p className="text-sm text-gray-600 mb-1">⚠️ Estimated Error:</p>
+              <p className="font-semibold text-orange-600">±{Math.round(result.mae_estimate).toLocaleString('en-US')} million VND</p>
             </div>
           )}
 
           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-xs text-yellow-800">
-              <strong>Lưu ý:</strong> Đây chỉ là mức giá tham khảo dựa trên mô hình machine learning, 
-              chưa thay thế được thẩm định thực tế. Giá thực tế có thể khác tùy thuộc vào tình trạng xe, 
-              lịch sử sử dụng và các yếu tố khác.
+              <strong>Note:</strong> This is only a reference price based on our machine learning model, 
+              and does not replace actual professional appraisal. The actual price may vary depending on the car's condition, 
+              usage history, and other factors.
             </p>
           </div>
         </div>

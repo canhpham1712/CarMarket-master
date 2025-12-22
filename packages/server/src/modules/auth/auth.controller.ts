@@ -200,7 +200,55 @@ export class AuthController {
     message: 'Facebook OAuth Login',
     description: 'User logged in via Facebook OAuth',
   })
-  async facebookAuthCallback(@Request() req: any): Promise<AuthResponse> {
-    return this.authService.validateOAuthUser(req.user, OAuthProvider.FACEBOOK);
+  async facebookAuthCallback(@Request() req: any, @Res() res: any) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+    const redirectUrl = new URL(`${frontendUrl}/auth/callback`);
+    
+    try {
+      // Check if user was authenticated by the guard
+      if (!req.user) {
+        // Check if there's an error in query params from Facebook
+        const error = req.query.error;
+        
+        if (error) {
+          // Provide more specific error messages
+          let userMessage = 'OAuth authentication failed. Please try again.';
+          if (error === 'access_denied') {
+            userMessage = 'Authentication was cancelled. Please try again.';
+          } else if (error === 'invalid_client') {
+            userMessage = 'OAuth configuration error. Please contact support.';
+          } else if (error === 'redirect_uri_mismatch') {
+            userMessage = 'OAuth configuration error. Please contact support.';
+          }
+          
+          redirectUrl.searchParams.set('error', 'oauth_failed');
+          redirectUrl.searchParams.set('message', userMessage);
+        } else {
+          redirectUrl.searchParams.set('error', 'oauth_failed');
+          redirectUrl.searchParams.set('message', 'OAuth authentication failed. Please try again.');
+        }
+        
+        return res.redirect(redirectUrl.toString());
+      }
+
+      // Validate that user object has required fields
+      if (!req.user.providerId || !req.user.email) {
+        redirectUrl.searchParams.set('error', 'oauth_failed');
+        redirectUrl.searchParams.set('message', 'Invalid OAuth user data. Please try again.');
+        return res.redirect(redirectUrl.toString());
+      }
+
+      const authResponse = await this.authService.validateOAuthUser(req.user, OAuthProvider.FACEBOOK);
+      
+      // Redirect to frontend with tokens as query params
+      redirectUrl.searchParams.set('token', authResponse.accessToken);
+      redirectUrl.searchParams.set('success', 'true');
+      return res.redirect(redirectUrl.toString());
+    } catch (error: any) {
+      // Redirect to frontend with error
+      redirectUrl.searchParams.set('error', 'oauth_failed');
+      redirectUrl.searchParams.set('message', error?.message || 'OAuth authentication failed. Please try again.');
+      return res.redirect(redirectUrl.toString());
+    }
   }
 }
