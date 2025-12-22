@@ -166,8 +166,8 @@ export const CarValuationPage: React.FC = () => {
     setError(null);
     setResult(null);
 
-    if (!make || !model || !year) {
-      setError('Please select all required information: Make, Model, and Year');
+    if (!make || !model || !year || !version || !color) {
+      setError('Please select all required information: Make, Model, Year, Version, and Color');
       return;
     }
 
@@ -273,13 +273,14 @@ export const CarValuationPage: React.FC = () => {
         {versions.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
-              Car Version <span className="text-gray-500">(optional)</span>
+              Car Version *
             </label>
             <select
               value={version}
               onChange={(e) => setVersion(e.target.value)}
               className="border rounded px-3 py-2 w-full"
               disabled={!year || loadingVersions}
+              required
             >
               <option value="">-- Select Version --</option>
               {versions.map((v) => (
@@ -295,13 +296,14 @@ export const CarValuationPage: React.FC = () => {
         {colors.length > 0 && (
           <div>
             <label className="block text-sm font-medium mb-1">
-              Color <span className="text-gray-500">(optional)</span>
+              Color *
             </label>
             <select
               value={color}
               onChange={(e) => setColor(e.target.value)}
               className="border rounded px-3 py-2 w-full"
               disabled={!year || loadingColors}
+              required
             >
               <option value="">-- Select Color --</option>
               {colors.map((c) => (
@@ -317,7 +319,7 @@ export const CarValuationPage: React.FC = () => {
         <button
           type="submit"
           className="bg-blue-600 text-white rounded px-4 py-2 mt-2 disabled:opacity-60"
-          disabled={loading || !make || !model || !year}
+          disabled={loading || !make || !model || !year || !version || !color}
         >
           {loading ? 'Estimating...' : 'Estimate Price'}
         </button>

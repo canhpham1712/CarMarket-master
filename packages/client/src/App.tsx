@@ -39,6 +39,7 @@ import { useEffect } from "react";
 import CarValuationPage from "./pages/CarValuationPage";
 import ScrollToTop from "./components/ScrollToTop";
 import { SearchPage } from "./pages/SearchPage";
+import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 
 function App() {
   const initialize = useAuthStore((state) => state.initialize);
@@ -110,6 +111,7 @@ function App() {
                   <Route path="/cars/:id" element={<CarDetailsPage />} />
                   <Route path="/users/:id" element={<UserProfilePage />} />
                   <Route path="/valuation" element={<CarValuationPage />} />
+                  <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
                   {/* Protected Routes */}
                   <Route
