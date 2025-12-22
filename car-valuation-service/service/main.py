@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Optional
+import os
 import pickle
 import joblib
 
@@ -39,9 +40,17 @@ class PricePrediction(BaseModel):
 app = FastAPI(title="Car Valuation Service", version="1.0.0")
 
 # CORS middleware để frontend có thể gọi API
+# Hỗ trợ environment variable để cấu hình origins trong production
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins_env == "*":
+    allowed_origins = ["*"]
+else:
+    # Cho phép nhiều origins, phân cách bởi dấu phẩy
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Trong production nên giới hạn domain cụ thể
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
