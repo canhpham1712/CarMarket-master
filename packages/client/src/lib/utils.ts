@@ -87,3 +87,13 @@ export const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event
   e.currentTarget.src = CAR_PLACEHOLDER_IMAGE;
   e.currentTarget.onerror = null; // Ngăn lặp vô hạn nếu ảnh placeholder cũng lỗi
 };
+
+export const formatPriceShort = (value: number) => {
+  if (value >= 1000000000) {
+    return `${(value / 1000000000).toFixed(1)} Tỷ`;
+  }
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(0)} Triệu`;
+  }
+  return value.toLocaleString();
+};

@@ -6,11 +6,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Truck,
-  Zap,
-  Leaf,
-  Wrench,
-  Mountain,
   Map,
   List,
   Star,
@@ -28,11 +23,30 @@ import { ListingService } from "../services/listing.service";
 import { useMetadata } from "../services/metadata.service";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { getMediaUrl, handleImageError, CAR_PLACEHOLDER_IMAGE, cn } from "../lib/utils";
+import { getMediaUrl, handleImageError, cn, formatPriceShort } from "../lib/utils";
+import { DualRangeSlider } from "../components/ui/DualRangeSlider";
 
 const MAP_VIEW_FETCH_LIMIT = 500;
-// SỬA: Định nghĩa hằng số giá tối đa mặc định (1 nghìn tỷ) để dùng nhất quán
-const DEFAULT_MAX_PRICE = 1000000000000;
+
+// CẤU HÌNH LOGIC GIÁ
+// Giá trị thực tế gửi xuống Backend khi chọn "Max" (50 Tỷ)
+const BACKEND_MAX_PRICE = 50000000000; 
+
+// Giá trị hiển thị tối đa trên thanh trượt (2 Tỷ)
+const UI_SOFT_LIMIT = 2000000000; 
+
+// Bước nhảy (50 triệu để kéo mượt hơn trong khoảng 0-2 tỷ)
+const PRICE_STEP = 50000000; 
+
+// Giá trị max thực tế CỦA THANH TRƯỢT (2 Tỷ + 1 bước nhảy = 2 Tỷ 050tr)
+// Nấc này sẽ đại diện cho "> 2 Tỷ"
+const UI_SLIDER_MAX = UI_SOFT_LIMIT + PRICE_STEP;
+
+// Helper hiển thị label
+const formatPriceLabel = (value: number) => {
+  if (value >= UI_SLIDER_MAX) return "> 2 Tỷ";
+  return formatPriceShort(value);
+};
 
 export function HomePage() {
   const { user } = useAuthStore();
@@ -41,12 +55,18 @@ export function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<ListingDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(""); 
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [appliedFilters, setAppliedFilters] = useState<SearchFilters>({
     priceMin: 0,
-    priceMax: DEFAULT_MAX_PRICE, // SỬA: Dùng hằng số
-  }); 
+    priceMax: BACKEND_MAX_PRICE,
+  });
+  
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Local State cho Slider (Max là UI_SLIDER_MAX ~ 2.05 Tỷ)
+  const [localPriceRange, setLocalPriceRange] = useState<[number, number]>([0, UI_SLIDER_MAX]);
+
   const { metadata, loading: metadataLoading, error: metadataError } = useMetadata();
   const [selectedMakeId, setSelectedMakeId] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<any[]>([]);
@@ -70,60 +90,64 @@ export function HomePage() {
     totalPages: 0,
   });
 
-  const [totalCarsAvailable, setTotalCarsAvailable] = useState<number | null>(
-    null
-  );
+  const [totalCarsAvailable, setTotalCarsAvailable] = useState<number | null>(null);
 
   const sortOptions = [
-    {
-      value: "newest",
-      label: "Newest First",
-      sortBy: "createdAt",
-      sortOrder: "DESC" as const,
-    },
-    {
-      value: "oldest",
-      label: "Oldest First",
-      sortBy: "createdAt",
-      sortOrder: "ASC" as const,
-    },
-    {
-      value: "price-low",
-      label: "Price: Low to High",
-      sortBy: "price",
-      sortOrder: "ASC" as const,
-    },
-    {
-      value: "price-high",
-      label: "Price: High to Low",
-      sortBy: "price",
-      sortOrder: "DESC" as const,
-    },
-    {
-      value: "year-new",
-      label: "Year: Newest First",
-      sortBy: "year",
-      sortOrder: "DESC" as const,
-    },
-    {
-      value: "year-old",
-      label: "Year: Oldest First",
-      sortBy: "year",
-      sortOrder: "ASC" as const,
-    },
-    {
-      value: "mileage-low",
-      label: "Mileage: Low to High",
-      sortBy: "mileage",
-      sortOrder: "ASC" as const,
-    },
-    {
-      value: "mileage-high",
-      label: "Mileage: High to Low",
-      sortBy: "mileage",
-      sortOrder: "DESC" as const,
-    },
+    { value: "newest", label: "Newest First", sortBy: "createdAt", sortOrder: "DESC" as const },
+    { value: "oldest", label: "Oldest First", sortBy: "createdAt", sortOrder: "ASC" as const },
+    { value: "price-low", label: "Price: Low to High", sortBy: "price", sortOrder: "ASC" as const },
+    { value: "price-high", label: "Price: High to Low", sortBy: "price", sortOrder: "DESC" as const },
+    { value: "year-new", label: "Year: Newest First", sortBy: "year", sortOrder: "DESC" as const },
+    { value: "year-old", label: "Year: Oldest First", sortBy: "year", sortOrder: "ASC" as const },
+    { value: "mileage-low", label: "Mileage: Low to High", sortBy: "mileage", sortOrder: "ASC" as const },
+    { value: "mileage-high", label: "Mileage: High to Low", sortBy: "mileage", sortOrder: "DESC" as const },
   ];
+
+  // --- LOGIC XỬ LÝ SLIDER ---
+
+  // Effect A: Đồng bộ local state khi appliedFilters thay đổi (Data -> UI)
+  useEffect(() => {
+    let uiMin = appliedFilters.priceMin || 0;
+    let uiMax = appliedFilters.priceMax || BACKEND_MAX_PRICE;
+
+    // Nếu giá max từ server >= UI_SLIDER_MAX (hoặc là BACKEND_MAX_PRICE), thì gán UI về nấc cuối cùng
+    if (uiMax >= UI_SLIDER_MAX) {
+      uiMax = UI_SLIDER_MAX;
+    }
+
+    setLocalPriceRange([uiMin, uiMax]);
+  }, [appliedFilters.priceMin, appliedFilters.priceMax]);
+
+  // Effect B: Debounce 1.5s - Chỉ gọi API khi người dùng dừng kéo (UI -> Data)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const currentMinFilter = appliedFilters.priceMin || 0;
+      const currentMaxFilter = appliedFilters.priceMax || BACKEND_MAX_PRICE;
+      
+      let newMin = localPriceRange[0];
+      let newMax = localPriceRange[1];
+
+      // LOGIC QUAN TRỌNG: Nếu người dùng kéo kịch kim phải (>= 2.05 Tỷ)
+      // -> Gán giá trị thực là Vô cực (BACKEND_MAX_PRICE)
+      if (newMax >= UI_SLIDER_MAX) {
+        newMax = BACKEND_MAX_PRICE;
+      }
+
+      // Chỉ gọi API nếu giá trị thực sự thay đổi
+      if (newMin !== currentMinFilter || newMax !== currentMaxFilter) {
+        setAppliedFilters((prev) => ({
+          ...prev,
+          priceMin: newMin,
+          priceMax: newMax,
+        }));
+        setPagination((prev) => ({ ...prev, page: 1 }));
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [localPriceRange, appliedFilters]);
+
+  // ---------------------------
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -388,7 +412,6 @@ export function HomePage() {
     loadModels();
   }, [selectedMakeId, metadata]);
 
-  // SỬA: Dùng hằng số DEFAULT_MAX_PRICE trong check này
   const hasActiveFilters = useCallback(
     (filtersToCheck?: SearchFilters) => {
       const filters = filtersToCheck || appliedFilters;
@@ -403,7 +426,7 @@ export function HomePage() {
         filters.yearMin ||
         filters.yearMax ||
         (filters.priceMin && filters.priceMin > 0) ||
-        (filters.priceMax && filters.priceMax < DEFAULT_MAX_PRICE) || // SỬA: Check nhất quán
+        (filters.priceMax && filters.priceMax < BACKEND_MAX_PRICE) ||
         filters.mileageMax ||
         filters.fuelType ||
         filters.transmission ||
@@ -493,8 +516,9 @@ export function HomePage() {
   const clearFilters = () => {
     setAppliedFilters({
       priceMin: 0,
-      priceMax: DEFAULT_MAX_PRICE, // SỬA: Reset về đúng giá trị mặc định cao
+      priceMax: BACKEND_MAX_PRICE,
     });
+    setLocalPriceRange([0, UI_SLIDER_MAX]); // Reset local slider về 2.05 Tỷ (Đại diện cho Max)
     setSearchQuery("");
     setShowFilters(false);
     setSelectedMakeId("");
@@ -544,26 +568,10 @@ export function HomePage() {
     return currentSort?.value || "newest";
   };
 
-  const handleStyleSelect = (type: "bodyType" | "fuelType", value: string) => {
-    setAppliedFilters((prev) => ({
-      ...prev,
-      [type]: value,
-    }));
-    setPagination((prev) => ({
-      ...prev,
-      page: 1,
-    }));
-    const listingsSection = document.getElementById("featured-cars-section");
-    if (listingsSection) {
-      listingsSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="relative text-white py-20 md:py-24">
-        {/* ... (phần Hero giữ nguyên) ... */}
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{
@@ -624,11 +632,11 @@ export function HomePage() {
                           <div className="h-12 w-16 flex-shrink-0 bg-gray-200 rounded overflow-hidden mr-4">
                             {item.thumbnail ? (
                               <img 
-                              src={
-                                item.thumbnail.startsWith('http') 
-                                  ? item.thumbnail 
-                                  : getMediaUrl(item.thumbnail)
-                              }
+                                src={
+                                  item.thumbnail.startsWith('http') 
+                                    ? item.thumbnail 
+                                    : getMediaUrl(item.thumbnail)
+                                }
                                 alt={item.title}
                                 className="h-full w-full object-cover"
                                 onError={handleImageError}
@@ -782,44 +790,17 @@ export function HomePage() {
                     </button>
                   </span>
                 )}
-                {appliedFilters.model && (
+                {/* ... (Các filter tag khác giữ nguyên) ... */}
+                {(appliedFilters.priceMin && appliedFilters.priceMin > 0) || (appliedFilters.priceMax && appliedFilters.priceMax < BACKEND_MAX_PRICE) ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Model: {appliedFilters.model}
-                    <button
-                      onClick={() => removeFilter('model')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove model filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {appliedFilters.yearMin && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Year: {appliedFilters.yearMin}
-                    {appliedFilters.yearMax && `-${appliedFilters.yearMax}`}
-                    <button
-                      onClick={() => {
-                        removeFilter('yearMin');
-                        removeFilter('yearMax');
-                      }}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove year filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {/* SỬA: Check giá dùng hằng số */}
-                {(appliedFilters.priceMin && appliedFilters.priceMin > 0) || (appliedFilters.priceMax && appliedFilters.priceMax < DEFAULT_MAX_PRICE) ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Price: ${((appliedFilters.priceMin || 0) / 1000).toFixed(0)}k - ${((appliedFilters.priceMax || DEFAULT_MAX_PRICE) / 1000).toFixed(0)}k
+                    Price: {formatPriceShort(appliedFilters.priceMin || 0)} - {formatPriceShort(appliedFilters.priceMax || BACKEND_MAX_PRICE)}
                     <button
                       onClick={() => {
                         setAppliedFilters((prev) => {
                           const { priceMin, priceMax, ...rest } = prev;
-                          return { ...rest, priceMin: 0, priceMax: DEFAULT_MAX_PRICE }; // SỬA: Reset về DEFAULT_MAX_PRICE
+                          return { ...rest, priceMin: 0, priceMax: BACKEND_MAX_PRICE };
                         });
+                        setLocalPriceRange([0, UI_SLIDER_MAX]);
                       }}
                       className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
                       aria-label="Remove price filter"
@@ -828,78 +809,7 @@ export function HomePage() {
                     </button>
                   </span>
                 ) : null}
-                {appliedFilters.mileageMax && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Max Mileage: {appliedFilters.mileageMax.toLocaleString()} mi
-                    <button
-                      onClick={() => removeFilter('mileageMax')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove mileage filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {appliedFilters.fuelType && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Fuel: {metadata?.fuelTypes?.find(f => f.value === appliedFilters.fuelType)?.displayValue || appliedFilters.fuelType}
-                    <button
-                      onClick={() => removeFilter('fuelType')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove fuel type filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {appliedFilters.bodyType && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Body: {metadata?.bodyTypes?.find(b => b.value === appliedFilters.bodyType)?.displayValue || appliedFilters.bodyType}
-                    <button
-                      onClick={() => removeFilter('bodyType')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove body type filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {appliedFilters.transmission && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Transmission: {metadata?.transmissionTypes?.find(t => t.value === appliedFilters.transmission)?.displayValue || appliedFilters.transmission}
-                    <button
-                      onClick={() => removeFilter('transmission')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove transmission filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {appliedFilters.condition && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Condition: {metadata?.conditions?.find(c => c.value === appliedFilters.condition)?.displayValue || appliedFilters.condition}
-                    <button
-                      onClick={() => removeFilter('condition')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove condition filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {appliedFilters.location && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm font-medium border border-blue-200">
-                    Location: {appliedFilters.location}
-                    <button
-                      onClick={() => removeFilter('location')}
-                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                      aria-label="Remove location filter"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
+                
                 {hasActiveFilters() && (
                   <button
                     onClick={clearFilters}
@@ -1011,11 +921,12 @@ export function HomePage() {
             </Button>
           </div>
 
-          {/* Filter Panel */}
+          {/* Filter Panel - BỐ CỤC LẠI */}
           {showFilters && metadata && (
             <Card className="mb-8">
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {/* Hàng 1: Các bộ lọc cơ bản */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                   {/* Make */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1032,13 +943,7 @@ export function HomePage() {
                       onValueChange={(value) => {
                         setSelectedMakeId(value as string);
                       }}
-                      placeholder={
-                        metadataLoading 
-                          ? "Loading makes..." 
-                          : metadata?.makes?.length === 0 
-                            ? "No makes available" 
-                            : "Select a make"
-                      }
+                      placeholder="Select a make"
                       searchable={true}
                       multiple={false}
                       maxHeight="360px"
@@ -1075,51 +980,10 @@ export function HomePage() {
                           setPagination((prev) => ({ ...prev, page: 1 }));
                         }
                       }}
-                      placeholder={
-                        selectedMakeId && availableModels.length === 0
-                          ? "Loading models..."
-                          : selectedMakeId
-                            ? "Select a model"
-                            : "Select make first"
-                      }
+                      placeholder="Select a model"
                       searchable={true}
                       multiple={false}
                     />
-                  </div>
-
-                  {/* Price Range */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Price Range ($)
-                    </label>
-                    <div className="flex space-x-2">
-                      <Input
-                        type="number"
-                        placeholder="Min"
-                        value={appliedFilters.priceMin && appliedFilters.priceMin > 0 ? appliedFilters.priceMin : ""}
-                        onChange={(e) => {
-                          setAppliedFilters((prev) => ({
-                            ...prev,
-                            priceMin: e.target.value ? Number(e.target.value) : 0,
-                          }));
-                          setPagination((prev) => ({ ...prev, page: 1 }));
-                        }}
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Max"
-                        // SỬA: Check dùng hằng số
-                        value={appliedFilters.priceMax && appliedFilters.priceMax < DEFAULT_MAX_PRICE ? appliedFilters.priceMax : ""}
-                        onChange={(e) => {
-                          setAppliedFilters((prev) => ({
-                            ...prev,
-                            // SỬA: Reset về hằng số
-                            priceMax: e.target.value ? Number(e.target.value) : DEFAULT_MAX_PRICE,
-                          }));
-                          setPagination((prev) => ({ ...prev, page: 1 }));
-                        }}
-                      />
-                    </div>
                   </div>
 
                   {/* Year Range */}
@@ -1129,6 +993,7 @@ export function HomePage() {
                     </label>
                     <div className="flex space-x-2">
                       <EnhancedSelect
+                        className="w-full" // <--- THÊM DÒNG NÀY
                         options={[
                           { value: "", label: "From" },
                           ...Array.from(
@@ -1152,6 +1017,7 @@ export function HomePage() {
                         multiple={false}
                       />
                       <EnhancedSelect
+                        className="w-full" // <--- THÊM DÒNG NÀY
                         options={[
                           { value: "", label: "To" },
                           ...Array.from(
@@ -1177,11 +1043,50 @@ export function HomePage() {
                     </div>
                   </div>
 
-                  {/* ... (Giữ nguyên các filter còn lại) ... */}
+                  {/* Location (Đưa lên hàng 1) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Location
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="City or State"
+                      value={appliedFilters.location || ""}
+                      onChange={(e) => {
+                        setAppliedFilters((prev) => {
+                          const { location, ...rest } = prev;
+                          return e.target.value ? { ...rest, location: e.target.value } : rest;
+                        });
+                        setPagination((prev) => ({ ...prev, page: 1 }));
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Hàng 2: Price Range Slider (Riêng biệt) */}
+                <div className="mb-8 px-2 py-4 border-t border-b border-gray-100 bg-gray-50/50 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-6">
+                    Price Range: {formatPriceLabel(localPriceRange[0])} - {formatPriceLabel(localPriceRange[1])} (VND)
+                  </label>
+                  <DualRangeSlider
+                    min={0}
+                    max={UI_SLIDER_MAX}
+                    step={PRICE_STEP} // Sử dụng bước nhảy 50 Triệu
+                    valueMin={localPriceRange[0]}
+                    valueMax={localPriceRange[1]}
+                    onChangeMin={(val) => setLocalPriceRange(prev => [val, prev[1]])}
+                    onChangeMax={(val) => setLocalPriceRange(prev => [prev[0], val])}
+                    formatValue={formatPriceLabel}
+                    className="mb-2"
+                  />
+                </div>
+
+                {/* Hàng 3: Các bộ lọc phụ */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                   {/* Mileage */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Max Mileage (miles)
+                      Max Mileage
                     </label>
                     <Input
                       type="number"
@@ -1302,25 +1207,6 @@ export function HomePage() {
                       placeholder="Any Condition"
                       searchable={false}
                       multiple={false}
-                    />
-                  </div>
-
-                  {/* Location */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Location
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="City or State"
-                      value={appliedFilters.location || ""}
-                      onChange={(e) => {
-                        setAppliedFilters((prev) => {
-                          const { location, ...rest } = prev;
-                          return e.target.value ? { ...rest, location: e.target.value } : rest;
-                        });
-                        setPagination((prev) => ({ ...prev, page: 1 }));
-                      }}
                     />
                   </div>
                 </div>
@@ -1518,9 +1404,6 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* Shop Vehicles by Style */}
-      {/* ... (Giữ nguyên phần này) ... */}
-      
       {/* Stats Section */}
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
