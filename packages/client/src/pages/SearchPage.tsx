@@ -797,11 +797,12 @@ export function SearchPage() {
 
           {/* Year Range */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Year Range
             </label>
             <div className="flex space-x-2">
               <EnhancedSelect
+                className="w-full" // <--- THÊM DÒNG NÀY
                 options={[
                   { value: "", label: "From" },
                   ...Array.from(
@@ -812,9 +813,7 @@ export function SearchPage() {
                     })
                   ),
                 ]}
-                value={
-                  appliedFilters.yearMin ? String(appliedFilters.yearMin) : ""
-                }
+                value={appliedFilters.yearMin ? String(appliedFilters.yearMin) : ""}
                 onValueChange={(value) => {
                   setAppliedFilters((prev) => {
                     const { yearMin, ...rest } = prev;
@@ -827,6 +826,7 @@ export function SearchPage() {
                 multiple={false}
               />
               <EnhancedSelect
+                className="w-full" // <--- THÊM DÒNG NÀY
                 options={[
                   { value: "", label: "To" },
                   ...Array.from(
@@ -837,9 +837,7 @@ export function SearchPage() {
                     })
                   ),
                 ]}
-                value={
-                  appliedFilters.yearMax ? String(appliedFilters.yearMax) : ""
-                }
+                value={appliedFilters.yearMax ? String(appliedFilters.yearMax) : ""}
                 onValueChange={(value) => {
                   setAppliedFilters((prev) => {
                     const { yearMax, ...rest } = prev;
