@@ -68,14 +68,17 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
               }
             } else {
               // Sync failed - keep messages in localStorage
-              toast.warning(
-                syncResult.error || "Failed to sync messages. They will be kept locally."
+              // FIX: Changed toast.warning to toast with icon
+              toast(
+                syncResult.error || "Failed to sync messages. They will be kept locally.",
+                { icon: '⚠️' }
               );
             }
           }
         } catch (error: any) {
           console.error("Failed to sync guest messages:", error);
-          toast.warning("Failed to sync messages. They will be kept locally.");
+          // FIX: Changed toast.warning to toast with icon
+          toast("Failed to sync messages. They will be kept locally.", { icon: '⚠️' });
         }
       })();
     }
@@ -287,7 +290,9 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
           return;
         } else if (errorCode === 'RESPONSE_SAVE_FAILED') {
           // User message was saved but response wasn't
-          toast.warning(response.error.message || "Response may not be saved.");
+          // FIX: Changed toast.warning to toast with icon
+          toast(response.error.message || "Response may not be saved.", { icon: '⚠️' });
+          
           // Update conversationId if provided
           if (response.error.partialData?.conversationId) {
             setConversationId(response.error.partialData.conversationId);
@@ -347,7 +352,8 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
         toast.error(error.response.data.message || "Message not saved. Please try again.");
         return;
       } else if (error.response?.data?.code === 'RESPONSE_SAVE_FAILED') {
-        toast.warning(error.response.data.message || "Response may not be saved.");
+        // FIX: Changed toast.warning to toast with icon
+        toast(error.response.data.message || "Response may not be saved.", { icon: '⚠️' });
       }
       
       const errorMessage: Message = {
