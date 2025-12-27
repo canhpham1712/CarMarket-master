@@ -1,161 +1,99 @@
-# Car Market 🚗
+# CarMarket - Used Car Marketplace Platform
 
-A modern full-stack marketplace for buying and selling used cars.
-
-## Tech Stack
-
-**Frontend:** React + TypeScript + Tailwind CSS + Vite  
-**Backend:** NestJS + TypeScript + PostgreSQL + JWT Auth  
-**Database:** PostgreSQL + Redis (Docker)
+A modern full-stack marketplace for buying and selling used cars in Vietnam with AI-powered valuations and real-time communication.
 
 ## Quick Start
 
-### 1. Setup
-
 ```bash
+# Install dependencies
 npm install
+
+# Start databases (PostgreSQL + Redis)
 npm run db:up
-```
 
-### 2. Environment Files
+# Setup environment files
+cp packages/server/.env.example packages/server/.env
+cp packages/client/.env.example packages/client/.env
 
-Create these files with your settings:
+# Run migrations & seed data
+npm run migration:run
+npm run seed:rbac
 
-- `packages/server/.env` (copy from `packages/server/env.example`)
-- `packages/client/.env` (copy from `packages/client/env.example`)
-
-### 3. Seed Initial Data
-
-After starting the server, seed the car metadata (requires admin token):
-
-```bash
-curl -X POST http://localhost:3000/api/metadata/seed
-```
-
-### 4. Run Development
-
-**Option A: Both together**
-
-```bash
+# Start development servers
 npm run dev
 ```
 
-**Option B: Separate terminals**
+**Access Points:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3000/api
+- API Docs: http://localhost:3000/api/docs
 
-```bash
-# Terminal 1
-npm run server
+## Tech Stack
 
-# Terminal 2
-npm run client
-```
+**Frontend:** React 19 + TypeScript + Tailwind CSS v4 + Vite
+**Backend:** NestJS + TypeScript + PostgreSQL + Redis + Socket.IO
+**ML Service:** Python FastAPI + scikit-learn
 
-## Access Points
+## Documentation
 
-- **Frontend**: http://localhost:5173
-- **Backend**: http://localhost:3000/api
-- **Database**: localhost:5432
+Comprehensive documentation is available in the `/docs` directory:
+
+| Document | Description |
+|----------|-------------|
+| [Project Overview & PDR](./docs/project-overview-pdr.md) | Product vision, features, requirements |
+| [Codebase Summary](./docs/codebase-summary.md) | Architecture overview, modules, APIs |
+| [Code Standards](./docs/code-standards.md) | TypeScript, React, NestJS conventions |
+| [System Architecture](./docs/system-architecture.md) | Security, scalability, deployment |
+
+## Key Features
+
+- **Authentication:** Email/password, Google OAuth, Facebook OAuth
+- **Car Listings:** Create, edit, search with advanced filters
+- **Real-time Chat:** Socket.IO messaging between buyers/sellers
+- **AI Valuation:** ML-based price predictions (Ridge Regression, XGBoost)
+- **AI Assistant:** RAG-based chatbot (ChromaDB + OpenAI)
+- **Payment Integration:** MoMo, VNPay, PayOS
+- **Admin Dashboard:** User management, listing moderation, analytics
+- **Notifications:** Email + Push (Firebase)
+- **RBAC:** Role-based access control with granular permissions
 
 ## Available Commands
 
 ```bash
-npm run dev      # Start both client & server
-npm run client   # Start frontend only
-npm run server   # Start backend only
-npm run build    # Build both for production
-npm run db:up    # Start database
-npm run db:down  # Stop database
+# Development
+npm run dev              # Start both client & server
+npm run client           # Start frontend only
+npm run server           # Start backend only
+
+# Database
+npm run db:up            # Start PostgreSQL & Redis
+npm run db:down          # Stop databases
+npm run migration:run    # Run database migrations
+
+# Testing
+npm run test             # Run all tests
+npm run test:coverage    # Run tests with coverage
+
+# Building
+npm run build            # Build for production
 ```
-
-## Features
-
-- 🔐 **Authentication**: Register, login, password reset with JWT
-- 👤 **User Profiles**: Complete profile management with avatar upload
-- 🚗 **Car Listings**: Create, edit, delete listings with image support
-- 🔍 **Advanced Search**: Filter by make, model, price, fuel type, body type
-- ❤️ **Favorites System**: Save and manage favorite listings
-- 🛡️ **Admin Panel**: Metadata management and listing approval workflow
-- 📊 **Dynamic Data**: All car data managed through database (no hardcoded values)
-- 📱 **Responsive Design**: Modern UI with Tailwind CSS v4
-- 🔄 **Real-time Updates**: User-friendly notifications and data updates
 
 ## Project Structure
 
 ```
-carmarket/
+CarMarket/
 ├── packages/
-│   ├── client/     # React frontend
-│   └── server/     # NestJS backend
-├── docker-compose.yml
-└── package.json
+│   ├── client/          # React frontend
+│   └── server/          # NestJS backend
+├── car-valuation-service/  # Python ML service
+├── docs/                # Documentation
+├── init-scripts/        # Database initialization
+└── docker-compose.yml   # Database services
 ```
-
-## API Endpoints
-
-**Authentication:**
-
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `POST /api/auth/forgot-password` - Request password reset
-
-**Profile Management:**
-
-- `GET /api/users/profile` - Get user profile
-- `PUT /api/users/profile` - Update profile information
-- `POST /api/users/upload-avatar` - Upload profile avatar
-- `POST /api/users/change-password` - Change password
-
-**Listings:**
-
-- `GET /api/listings` - Get all approved listings
-- `GET /api/listings/:id` - Get listing details
-- `POST /api/listings` - Create new listing
-- `PATCH /api/listings/:id` - Update listing
-- `DELETE /api/listings/:id` - Delete listing
-- `POST /api/listings/upload-images` - Upload car images
-- `GET /api/search` - Search with filters
-
-**Favorites:**
-
-- `POST /api/favorites/:listingId` - Add listing to favorites
-- `DELETE /api/favorites/:listingId` - Remove from favorites
-- `GET /api/favorites` - Get user's favorite listings
-- `GET /api/favorites/check/:listingId` - Check if listing is favorited
-
-**Chat System:**
-
-- `POST /api/chat/start/:listingId` - Start conversation about listing
-- `POST /api/chat/:conversationId/messages` - Send message
-- `GET /api/chat/:conversationId` - Get conversation with messages
-- `GET /api/chat` - Get user's conversations
-- `POST /api/chat/:conversationId/read` - Mark messages as read
-
-**Car Metadata:**
-
-- `GET /api/metadata/all` - Get all car metadata (fuel types, body types, etc.)
-- `GET /api/metadata/makes` - Get all car makes
-- `GET /api/metadata/makes/:id/models` - Get models for a specific make
-- `GET /api/metadata/fuel-types` - Get fuel types
-- `GET /api/metadata/body-types` - Get body types
-- `GET /api/metadata/car-features` - Get available car features
-
-**Admin (Protected):**
-
-- `GET /api/admin/dashboard/stats` - Dashboard statistics
-- `GET /api/admin/listings/pending` - Pending listings for approval
-- `GET /api/metadata/admin/all` - Get all metadata for admin management
-- `POST /api/metadata/seed` - Seed initial car metadata
-- `POST /api/metadata/makes` - Create new car make
-- `PUT /api/metadata/makes/:id` - Update car make
-- `DELETE /api/metadata/makes/:id` - Delete car make
-- `POST /api/metadata/metadata` - Create new metadata
-- `PUT /api/metadata/metadata/:id` - Update metadata
-- `DELETE /api/metadata/metadata/:id` - Delete metadata
 
 ## Environment Variables
 
 **Server (.env):**
-
 ```env
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
@@ -164,14 +102,83 @@ DATABASE_PASSWORD=carmarket_password
 DATABASE_NAME=carmarket
 JWT_SECRET=your-secret-key
 PORT=3000
+
+# OAuth (optional)
+GOOGLE_CLIENT_ID=xxx
+GOOGLE_CLIENT_SECRET=xxx
+FACEBOOK_APP_ID=xxx
+FACEBOOK_APP_SECRET=xxx
+
+# Email (optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=xxx@gmail.com
+SMTP_PASSWORD=xxx
 ```
 
 **Client (.env):**
-
 ```env
 VITE_API_URL=http://localhost:3000/api
+VITE_SOCKET_URL=http://localhost:3000
 ```
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/google` - Google OAuth
+- `GET /api/auth/facebook` - Facebook OAuth
+
+### Listings
+- `GET /api/listings` - Get all listings (paginated)
+- `GET /api/listings/:id` - Get listing details
+- `POST /api/listings` - Create listing (auth required)
+- `PATCH /api/listings/:id` - Update listing
+- `DELETE /api/listings/:id` - Delete listing
+
+### Search
+- `GET /api/search` - Advanced search with filters
+
+### Chat (WebSocket)
+- Namespace: `/chat`
+- Events: `sendMessage`, `receiveMessage`, `markAsRead`
+
+See [API Documentation](http://localhost:3000/api/docs) for complete endpoint reference.
+
+## Development Workflow
+
+1. **Branch Naming:** `feature/feature-name`, `fix/bug-name`
+2. **Commit Format:** `feat(scope): description`, `fix(scope): description`
+3. **Code Review:** Required for all PRs
+4. **Testing:** Unit tests (80%+ coverage), integration tests
+
+Refer to [Code Standards](./docs/code-standards.md) for detailed conventions.
+
+## Deployment
+
+**Frontend (Vercel):**
+```bash
+vercel --prod
+```
+
+**Backend (Railway/Heroku):**
+```bash
+git push heroku main
+```
+
+See [Deployment Guide](./docs/system-architecture.md#deployment-architecture) for details.
+
+## Support & Contributing
+
+- Report issues via GitHub Issues
+- Follow [Code Standards](./docs/code-standards.md) for contributions
+- See [Project Overview](./docs/project-overview-pdr.md) for roadmap
 
 ## License
 
 MIT
+
+---
+
+**Last Updated:** 2025-12-27 | **Version:** 1.0.0
