@@ -1,10 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { Message, AssistantState } from "../types/assistant.types";
 import { AssistantService } from "../services/assistant.service";
 import { NotificationService, NotificationType } from "../services/notification.service";
+import { ChatbotStorageService } from "../services/chatbot-storage.service";
 import { useAuthStore } from "../store/auth";
 import { socketService } from "../services/socket.service";
+import toast from "react-hot-toast";
 
 interface AssistantContextType extends AssistantState {
   sendMessage: (content: string) => Promise<void>;
@@ -31,6 +33,53 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     unreadCount: 0,
   });
   const [notificationCount, setNotificationCount] = useState(0);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const hasInitializedRef = useRef(false);
+
+  // Sync guest messages when user logs in
+  useEffect(() => {
+    if (isAuthenticated && ChatbotStorageService.hasMessages()) {
+      (async () => {
+        try {
+          const messages = ChatbotStorageService.getMessagesForSync();
+          const metadata = ChatbotStorageService.getSyncMetadata();
+
+          if (messages && messages.length > 0) {
+            const syncResult = await AssistantService.syncMessages(
+              messages,
+              metadata.deviceId,
+              metadata.sessionId
+            );
+
+            if (syncResult.success) {
+              // Clear localStorage after successful sync
+              ChatbotStorageService.clearMessages();
+              
+              // Update conversationId if sync created a new conversation
+              if (syncResult.conversationId) {
+                setConversationId(syncResult.conversationId);
+              }
+
+              // Optionally show success notification
+              if (syncResult.syncedCount > 0) {
+                toast.success(
+                  `Synced ${syncResult.syncedCount} message${syncResult.syncedCount > 1 ? 's' : ''} to your account`
+                );
+              }
+            } else {
+              // Sync failed - keep messages in localStorage
+              toast.warning(
+                syncResult.error || "Failed to sync messages. They will be kept locally."
+              );
+            }
+          }
+        } catch (error: any) {
+          console.error("Failed to sync guest messages:", error);
+          toast.warning("Failed to sync messages. They will be kept locally.");
+        }
+      })();
+    }
+  }, [isAuthenticated]);
 
   // Fetch notification count for listing approvals
   useEffect(() => {
@@ -73,73 +122,131 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     };
   }, [isAuthenticated]);
 
-  // Initialize assistant with welcome message
+  // Initialize assistant - load history or show welcome
   useEffect(() => {
-    if (state.messages.length === 0) {
-      (async () => {
-        try {
-          const welcomeResponse = await AssistantService.getWelcomeMessage();
-          const messages: Message[] = [];
-          
-          // Add welcome message
-          messages.push({
-            id: Date.now().toString(),
-            content: welcomeResponse.message,
-            sender: "assistant",
-            timestamp: new Date(),
-            type: "text",
-            actions: welcomeResponse.actions,
-          });
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
 
-          // Add notification messages separately if they exist
-          if (welcomeResponse.data?.notifications && Array.isArray(welcomeResponse.data.notifications)) {
-            welcomeResponse.data.notifications.forEach((notif: any, index: number) => {
-              messages.push({
-                id: `notification-${notif.id}-${Date.now() + index}`,
-                content: `✅ ${notif.message}`,
-                sender: "assistant",
-                timestamp: new Date(notif.createdAt),
-                type: "text",
-              });
-            });
+    (async () => {
+      try {
+        // Check for conversationId in URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlConversationId = urlParams.get('conversationId');
+
+        let messages: Message[] = [];
+        let loadedConversationId: string | null = null;
+
+        if (isAuthenticated) {
+          // Authenticated user flow
+          if (urlConversationId || conversationId) {
+            // Load conversation from DB (Context Restoration)
+            try {
+              const convId = urlConversationId || conversationId!;
+              const conversationData = await AssistantService.getConversationMessages(convId);
+              
+              messages = conversationData.messages.map((msg) => ({
+                id: msg.id,
+                content: msg.content,
+                sender: msg.sender,
+                timestamp: new Date(msg.createdAt),
+                type: "text" as const,
+              }));
+
+              loadedConversationId = conversationData.conversation.id;
+              setConversationId(loadedConversationId);
+            } catch (error: any) {
+              console.error("Failed to load conversation:", error);
+              if (error.response?.status === 404) {
+                toast.error("Conversation not found");
+              } else if (error.response?.status === 403) {
+                toast.error("You don't have access to this conversation");
+              }
+            }
           }
 
-          setState(prev => ({ ...prev, messages }));
-        } catch (error: any) {
-          // Handle connection errors gracefully
-          console.error("Failed to load welcome message:", error);
-          
-          // Set a default welcome message if backend is unavailable
-          const defaultMessages: Message[] = [{
-            id: Date.now().toString(),
-            content: "Hello! I'm your car marketplace assistant. How can I help you today?",
-            sender: "assistant",
-            timestamp: new Date(),
-            type: "text",
-            actions: [
-              {
-                label: "Browse Cars",
-                action: "search_listings",
-                data: {}
-              },
-              {
-                label: "My Listings",
-                action: "view_my_listings",
-                data: {}
-              }
-            ],
-          }];
-          
-          setState(prev => ({ ...prev, messages: defaultMessages }));
+          // If no messages loaded, show welcome
+          if (messages.length === 0) {
+            const welcomeResponse = await AssistantService.getWelcomeMessage();
+            messages.push({
+              id: Date.now().toString(),
+              content: welcomeResponse.message,
+              sender: "assistant",
+              timestamp: new Date(),
+              type: "text",
+              actions: welcomeResponse.actions,
+            });
+
+            // Add notification messages
+            if (welcomeResponse.data?.notifications && Array.isArray(welcomeResponse.data.notifications)) {
+              welcomeResponse.data.notifications.forEach((notif: any, index: number) => {
+                messages.push({
+                  id: `notification-${notif.id}-${Date.now() + index}`,
+                  content: `✅ ${notif.message}`,
+                  sender: "assistant",
+                  timestamp: new Date(notif.createdAt),
+                  type: "text",
+                });
+              });
+            }
+          }
+        } else {
+          // Guest user flow - load from localStorage
+          const guestConversation = ChatbotStorageService.loadMessages();
+          if (guestConversation && guestConversation.messages.length > 0) {
+            messages = guestConversation.messages.map((msg) => ({
+              ...msg,
+              timestamp: msg.timestamp instanceof Date 
+                ? msg.timestamp 
+                : new Date(msg.timestamp),
+            }));
+          } else {
+            // Show welcome message
+            const welcomeResponse = await AssistantService.getWelcomeMessage();
+            messages.push({
+              id: Date.now().toString(),
+              content: welcomeResponse.message,
+              sender: "assistant",
+              timestamp: new Date(),
+              type: "text",
+              actions: welcomeResponse.actions,
+            });
+          }
         }
-      })();
-    }
-  }, []);
+
+        setState(prev => ({ ...prev, messages }));
+      } catch (error: any) {
+        console.error("Failed to initialize assistant:", error);
+        
+        // Set default welcome message
+        const defaultMessages: Message[] = [{
+          id: Date.now().toString(),
+          content: "Hello! I'm your car marketplace assistant. How can I help you today?",
+          sender: "assistant",
+          timestamp: new Date(),
+          type: "text",
+          actions: [
+            {
+              label: "Browse Cars",
+              action: "search_listings",
+              data: {}
+            },
+            {
+              label: "My Listings",
+              action: "view_my_listings",
+              data: {}
+            }
+          ],
+        }];
+        
+        setState(prev => ({ ...prev, messages: defaultMessages }));
+      }
+    })();
+  }, [isAuthenticated, conversationId]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
-    // Add user message
+    // Add user message to UI immediately
     const userMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -158,8 +265,40 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
-      // Get assistant response
-      const response = await AssistantService.sendQuery(content);
+      // Send query with appropriate parameters
+      const response = await AssistantService.sendQuery(
+        content,
+        conversationId || undefined,
+        isAuthenticated
+      );
+
+      // Handle errors from response
+      if (response.error) {
+        const errorCode = response.error.code;
+        
+        if (errorCode === 'MESSAGE_SAVE_FAILED') {
+          // Remove user message from UI since it wasn't saved
+          setState(prev => ({
+            ...prev,
+            messages: prev.messages.filter(msg => msg.id !== userMessage.id),
+            isTyping: false,
+          }));
+          toast.error(response.error.message || "Message not saved. Please try again.");
+          return;
+        } else if (errorCode === 'RESPONSE_SAVE_FAILED') {
+          // User message was saved but response wasn't
+          toast.warning(response.error.message || "Response may not be saved.");
+          // Update conversationId if provided
+          if (response.error.partialData?.conversationId) {
+            setConversationId(response.error.partialData.conversationId);
+          }
+        }
+      }
+
+      // Update conversationId if returned
+      if (response.conversationId) {
+        setConversationId(response.conversationId);
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -170,16 +309,26 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
         actions: response.actions,
       };
 
-      setState(prev => ({
-        ...prev,
-        messages: [...prev.messages, assistantMessage],
-        isTyping: false,
-        unreadCount: prev.isOpen ? prev.unreadCount : prev.unreadCount + 1,
-      }));
+      // Update state with assistant message
+      setState(prev => {
+        const updatedMessages = [...prev.messages, assistantMessage];
+        
+        // Save to localStorage if guest
+        if (!isAuthenticated) {
+          ChatbotStorageService.saveMessages(updatedMessages);
+        }
+        
+        return {
+          ...prev,
+          messages: updatedMessages,
+          isTyping: false,
+          unreadCount: prev.isOpen ? prev.unreadCount : prev.unreadCount + 1,
+        };
+      });
     } catch (error: any) {
       console.error("Assistant error:", error);
       
-      // Provide more specific error messages based on error type
+      // Handle network/API errors
       let errorContent = "I'm sorry, I encountered an error. Please try again or contact support if the issue persists.";
       
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
@@ -188,6 +337,17 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
         errorContent = "I'm experiencing some technical difficulties. Please try rephrasing your question or try again in a moment.";
       } else if (error.response?.status === 401) {
         errorContent = "It looks like you need to log in to use the assistant. Please log in and try again.";
+      } else if (error.response?.data?.code === 'MESSAGE_SAVE_FAILED') {
+        // Remove user message from UI
+        setState(prev => ({
+          ...prev,
+          messages: prev.messages.filter(msg => msg.id !== userMessage.id),
+          isTyping: false,
+        }));
+        toast.error(error.response.data.message || "Message not saved. Please try again.");
+        return;
+      } else if (error.response?.data?.code === 'RESPONSE_SAVE_FAILED') {
+        toast.warning(error.response.data.message || "Response may not be saved.");
       }
       
       const errorMessage: Message = {
@@ -198,13 +358,22 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
         type: "text",
       };
       
-      setState(prev => ({
-        ...prev,
-        messages: [...prev.messages, errorMessage],
-        isTyping: false,
-      }));
+      setState(prev => {
+        const updatedMessages = [...prev.messages, errorMessage];
+        
+        // Save to localStorage if guest (even error message)
+        if (!isAuthenticated) {
+          ChatbotStorageService.saveMessages(updatedMessages);
+        }
+        
+        return {
+          ...prev,
+          messages: updatedMessages,
+          isTyping: false,
+        };
+      });
     }
-  }, []);
+  }, [conversationId, isAuthenticated]);
 
   const toggleAssistant = useCallback(() => {
     setState(prev => {
@@ -266,6 +435,14 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
   }, []);
 
   const clearMessages = useCallback(async () => {
+    // Reset conversationId to create new conversation on next message
+    setConversationId(null);
+    
+    // Clear localStorage if guest
+    if (!isAuthenticated) {
+      ChatbotStorageService.clearMessages();
+    }
+    
     try {
       const welcomeResponse = await AssistantService.getWelcomeMessage();
       const welcomeMessage: Message = {
@@ -304,7 +481,7 @@ export const AssistantProvider = ({ children }: AssistantProviderProps) => {
         messages: [defaultMessage],
       }));
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const markAsRead = useCallback(() => {
     setState(prev => ({ ...prev, unreadCount: 0 }));

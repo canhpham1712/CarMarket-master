@@ -13,6 +13,8 @@ import { CarMetadata } from '../entities/car-metadata.entity';
 import { Favorite } from '../entities/favorite.entity';
 import { ChatConversation } from '../entities/chat-conversation.entity';
 import { ChatMessage } from '../entities/chat-message.entity';
+import { ChatbotConversation } from '../entities/chatbot-conversation.entity';
+import { ChatbotMessage } from '../entities/chatbot-message.entity';
 import { ListingPendingChanges } from '../entities/listing-pending-changes.entity';
 import { ActivityLog } from '../entities/activity-log.entity';
 import { FAQ } from '../entities/faq.entity';
@@ -73,6 +75,8 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         Favorite,
         ChatConversation,
         ChatMessage,
+        ChatbotConversation,
+        ChatbotMessage,
         ListingPendingChanges,
         ActivityLog,
         FAQ,

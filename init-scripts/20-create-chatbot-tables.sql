@@ -3,15 +3,19 @@
 -- ========================================
 CREATE TABLE chatbot_conversations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255),
     "lastMessage" TEXT,
     "lastMessageAt" TIMESTAMP,
     "userId" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "deviceId" VARCHAR(255),
+    "sessionId" VARCHAR(255),
     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create index for faster queries by userId
+-- Create indexes for faster queries
 CREATE INDEX idx_chatbot_conversations_user_id ON chatbot_conversations("userId");
+CREATE INDEX idx_chatbot_conversations_device_id ON chatbot_conversations("deviceId");
 CREATE INDEX idx_chatbot_conversations_last_message_at ON chatbot_conversations("lastMessageAt" DESC);
 
 -- ========================================

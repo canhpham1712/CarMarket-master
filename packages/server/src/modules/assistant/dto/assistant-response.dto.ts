@@ -22,8 +22,18 @@ export interface SuggestionChip {
 export class AssistantResponseDto {
   intent!: UserIntent | null;
   message!: string;
+  conversationId?: string;
   data?: any;
   suggestions?: SuggestionChip[];
   actions?: MessageAction[];
+  error?: {
+    code: string;
+    message: string;
+    details?: string;
+    partialData?: {
+      conversationId?: string;
+      userMessageId?: string;
+    };
+  };
 }
 

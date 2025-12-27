@@ -12,6 +12,8 @@ import { CarMetadata } from '../entities/car-metadata.entity';
 import { Favorite } from '../entities/favorite.entity';
 import { ChatConversation } from '../entities/chat-conversation.entity';
 import { ChatMessage } from '../entities/chat-message.entity';
+import { ChatbotConversation } from '../entities/chatbot-conversation.entity';
+import { ChatbotMessage } from '../entities/chatbot-message.entity';
 import { ListingPendingChanges } from '../entities/listing-pending-changes.entity';
 import { ListingPromotion } from '../entities/listing-promotion.entity';
 import { ActivityLog } from '../entities/activity-log.entity';
@@ -58,6 +60,8 @@ export const AppDataSource = new DataSource({
     Favorite,
     ChatConversation,
     ChatMessage,
+    ChatbotConversation,
+    ChatbotMessage,
     ListingPendingChanges,
     ListingPromotion,
     ActivityLog,

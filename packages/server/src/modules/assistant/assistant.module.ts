@@ -20,6 +20,8 @@ import { Favorite } from '../../entities/favorite.entity';
 import { ChatConversation } from '../../entities/chat-conversation.entity';
 import { ChatMessage } from '../../entities/chat-message.entity';
 import { FAQ } from '../../entities/faq.entity';
+import { ChatbotConversation } from '../../entities/chatbot-conversation.entity';
+import { ChatbotMessage } from '../../entities/chatbot-message.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -34,6 +36,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       ChatConversation,
       ChatMessage,
       FAQ,
+      ChatbotConversation,
+      ChatbotMessage,
     ]),
     NotificationsModule,
   ],

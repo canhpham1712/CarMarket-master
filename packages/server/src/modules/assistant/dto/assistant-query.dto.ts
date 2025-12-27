@@ -8,5 +8,9 @@ export class AssistantQueryDto {
   @IsOptional()
   @IsString()
   conversationId?: string;
+
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 }
 

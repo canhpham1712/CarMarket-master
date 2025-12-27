@@ -16,6 +16,9 @@ export class ChatbotConversation {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  title!: string | null;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   lastMessage!: string;
 
@@ -37,6 +40,12 @@ export class ChatbotConversation {
 
   @Column({ type: 'uuid' })
   userId!: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  deviceId!: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  sessionId!: string | null;
 
   @OneToMany(() => ChatbotMessage, (message) => message.conversation)
   messages!: ChatbotMessage[];
