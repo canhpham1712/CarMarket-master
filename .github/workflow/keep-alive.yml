@@ -1,0 +1,23 @@
+name: Keep Render Services Alive
+on:
+  schedule:
+    # Chạy mỗi 14 phút để ngăn Render (timeout 15p) ngủ
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Cho phép chạy thủ công từ tab Actions nếu cần test
+
+jobs:
+  ping-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Main Backend (car_market)
+        # Thay thế URL bên dưới bằng link Render thật của backend chính
+        # Dùng curl -I (HEAD request) để nhẹ server, chỉ lấy header trả về
+        run: |
+          curl -I https://car-market-ydey.onrender.com/
+          echo "Pinged Main Backend at $(date)"
+
+      # CẢNH BÁO: Bỏ comment phần dưới chỉ khi bạn chấp nhận rủi ro hết giờ Free (xem lưu ý ở trên)
+      - name: Ping Valuation Service
+        run: |
+          curl -I https://car-valuation-service.onrender.com/
+          echo "Pinged Valuation Service at $(date)"
