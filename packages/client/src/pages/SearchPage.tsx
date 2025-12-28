@@ -112,6 +112,11 @@ export function SearchPage() {
     },
   ];
 
+  // Tự động cuộn lên đầu trang mỗi khi số trang (page) thay đổi
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [pagination.page]);
+  
   // Set browser card meta tags
   useEffect(() => {
     const hasFilters = hasActiveFilters();
