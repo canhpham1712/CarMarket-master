@@ -175,19 +175,19 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
     setResult(null);
 
     if (!make || !model || !year) {
-      setError('Vui lòng chọn ít nhất: Hãng xe, Model và Năm sản xuất');
+      setError('Please select at least: Make, Model, and Year');
       return;
     }
 
     // Version and color are optional in API, but required in form UI
     // We'll make them optional here for better UX
     if (versions.length > 0 && !version) {
-      setError('Vui lòng chọn phiên bản xe');
+      setError('Please select car version');
       return;
     }
 
     if (colors.length > 0 && !color) {
-      setError('Vui lòng chọn màu sắc');
+      setError('Please select color');
       return;
     }
 
@@ -211,7 +211,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
         onResult(data);
       }
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.detail || err?.response?.data?.message || 'Không thể định giá xe, vui lòng thử lại.';
+      const errorMsg = err?.response?.data?.detail || err?.response?.data?.message || 'Unable to estimate car price, please try again.';
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -223,7 +223,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
       <form onSubmit={handleSubmit} className="space-y-3">
         {/* Make */}
         <div>
-          <label className="block text-xs font-medium mb-1 text-gray-700">Hãng xe *</label>
+          <label className="block text-xs font-medium mb-1 text-gray-700">Car Make *</label>
           <select
             value={make}
             onChange={(e) => setMake(e.target.value)}
@@ -231,7 +231,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
             required
             disabled={loadingMakes}
           >
-            <option value="">-- Chọn hãng --</option>
+            <option value="">-- Select Make --</option>
             {makes.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -242,7 +242,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
 
         {/* Model */}
         <div>
-          <label className="block text-xs font-medium mb-1 text-gray-700">Model *</label>
+          <label className="block text-xs font-medium mb-1 text-gray-700">Car Model *</label>
           <select
             value={model}
             onChange={(e) => setModel(e.target.value)}
@@ -250,7 +250,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
             required
             disabled={!make || loadingModels}
           >
-            <option value="">-- Chọn model --</option>
+            <option value="">-- Select Model --</option>
             {models.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -262,7 +262,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
         {/* Year and Mileage */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs font-medium mb-1 text-gray-700">Năm *</label>
+            <label className="block text-xs font-medium mb-1 text-gray-700">Year *</label>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value ? Number(e.target.value) : '')}
@@ -270,7 +270,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
               required
               disabled={!model || loadingYears}
             >
-              <option value="">-- Năm --</option>
+              <option value="">-- Year --</option>
               {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
@@ -280,7 +280,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1 text-gray-700">Số km *</label>
+            <label className="block text-xs font-medium mb-1 text-gray-700">Mileage (km) *</label>
             <input
               type="number"
               value={mileage}
@@ -296,7 +296,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
         {versions.length > 0 && (
           <div>
             <label className="block text-xs font-medium mb-1 text-gray-700">
-              Phiên bản *
+              Car Version *
             </label>
             <select
               value={version}
@@ -305,7 +305,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
               disabled={!year || loadingVersions}
               required
             >
-              <option value="">-- Chọn phiên bản --</option>
+              <option value="">-- Select Version --</option>
               {versions.map((v) => (
                 <option key={v} value={v}>
                   {v}
@@ -319,7 +319,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
         {colors.length > 0 && (
           <div>
             <label className="block text-xs font-medium mb-1 text-gray-700">
-              Màu sắc *
+              Color *
             </label>
             <select
               value={color}
@@ -328,7 +328,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
               disabled={!year || loadingColors}
               required
             >
-              <option value="">-- Chọn màu --</option>
+              <option value="">-- Select Color --</option>
               {colors.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -351,7 +351,7 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
           className="w-full bg-black hover:bg-gray-800 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={loading || !make || !model || !year || (versions.length > 0 && !version) || (colors.length > 0 && !color)}
         >
-          {loading ? 'Đang tính toán...' : 'Định giá'}
+          {loading ? 'Estimating...' : 'Estimate Price'}
         </button>
       </form>
 
@@ -360,36 +360,36 @@ export function ValuationForm({ initialMakes = [], onResult }: ValuationFormProp
         <div className="mt-4 border-t border-gray-200 pt-3 space-y-2">
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
             <div className="text-center mb-2">
-              <p className="text-xs text-gray-600 mb-1">💰 Giá ước tính</p>
+              <p className="text-xs text-gray-600 mb-1">💰 Estimated Price</p>
               <p className="text-xl font-bold text-blue-600">
-                {Math.round(result.price_estimate).toLocaleString('en-US')} triệu VNĐ
+                {Math.round(result.price_estimate).toLocaleString('en-US')} million VNĐ
               </p>
             </div>
             
-            <div className="text-xs text-gray-600 mb-1">📊 Khoảng giá:</div>
+            <div className="text-xs text-gray-600 mb-1">📊 Price Range:</div>
             <p className="text-sm font-semibold text-gray-800">
-              {Math.round(result.price_min).toLocaleString('en-US')} - {Math.round(result.price_max).toLocaleString('en-US')} triệu VNĐ
+              {Math.round(result.price_min).toLocaleString('en-US')} - {Math.round(result.price_max).toLocaleString('en-US')} million VNĐ
             </p>
 
             {result.confidence_level && (
               <div className="mt-2 text-xs">
-                <span className="text-gray-600">✅ Độ tin cậy: </span>
+                <span className="text-gray-600">✅ Confidence Level: </span>
                 <span className="font-semibold text-green-600">{result.confidence_level}</span>
               </div>
             )}
 
             {result.mae_estimate && (
               <div className="mt-1 text-xs">
-                <span className="text-gray-600">⚠️ Sai số ước tính: </span>
+                <span className="text-gray-600">⚠️ Estimated Error: </span>
                 <span className="font-semibold text-orange-600">
-                  ±{Math.round(result.mae_estimate).toLocaleString('en-US')} triệu VNĐ
+                  ±{Math.round(result.mae_estimate).toLocaleString('en-US')} million VNĐ
                 </span>
               </div>
             )}
           </div>
 
           <p className="text-xs text-gray-500 italic">
-            Lưu ý: Đây chỉ là giá tham khảo dựa trên mô hình machine learning, không thay thế cho việc định giá chuyên nghiệp thực tế.
+            Note: This is only a reference price based on our machine learning model, and does not replace actual professional appraisal. The actual price may vary depending on the car's condition, usage history, and other factors.
           </p>
         </div>
       )}

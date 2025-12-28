@@ -1244,7 +1244,7 @@ Guidelines:
       return {
         intent: UserIntent.CAR_VALUATION,
         message:
-          'Tôi sẽ giúp bạn định giá xe. Vui lòng điền thông tin bên dưới để nhận được ước tính giá chính xác nhất.',
+          'I\'ll help you estimate your car\'s value. Please fill in the information below to get the most accurate price estimate.',
         data: {
           type: 'valuation_form',
           makes, // Provide makes so client can start loading
@@ -1252,7 +1252,7 @@ Guidelines:
         suggestions: [
           {
             id: '1',
-            label: 'Xem xe có sẵn',
+            label: 'View available cars',
             query: 'What cars do you have available?',
             icon: '🚗',
           },
@@ -1263,7 +1263,7 @@ Guidelines:
       return {
         intent: UserIntent.CAR_VALUATION,
         message:
-          'Xin lỗi, tôi đang gặp vấn đề khi tải form định giá. Vui lòng thử lại sau hoặc truy cập trang định giá trực tiếp.',
+          'Sorry, I\'m having trouble loading the valuation form. Please try again later or visit the valuation page directly.',
         suggestions: [],
       };
     }
