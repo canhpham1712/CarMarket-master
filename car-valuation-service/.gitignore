@@ -28,7 +28,6 @@ ENV/
 *.ipynb_checkpoints/
 
 # Model files (có thể rất lớn, nên ignore)
-models/*.pkl
 models/*.joblib
 models/*.h5
 models/*.pt
