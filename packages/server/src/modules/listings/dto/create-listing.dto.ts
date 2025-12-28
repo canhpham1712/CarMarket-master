@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
@@ -86,6 +86,15 @@ export class CreateCarDetailDto {
   description?: string;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return value;
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      // Handle comma-separated string
+      return value.split(',').map((item: string) => item.trim()).filter((item: string) => item.length > 0);
+    }
+    return value;
+  })
   @IsArray()
   @IsString({ each: true })
   features?: string[];
