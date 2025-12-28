@@ -102,6 +102,7 @@ COPY --from=builder /app/packages/server/dist ./dist
 # Script run-init-sql.ts của bạn đang tìm ../../../../init-scripts
 # Tức là nó mong đợi init-scripts nằm ở /app/init-scripts
 COPY --from=builder /app/init-scripts /app/init-scripts
+COPY --from=builder /app/packages/server/data ./data
 
 RUN mkdir -p ./uploads
 
